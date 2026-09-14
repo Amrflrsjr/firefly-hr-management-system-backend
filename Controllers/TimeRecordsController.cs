@@ -1,4 +1,6 @@
-﻿using FireflyHR.API.Data;
+﻿using ClosedXML.Excel;
+using DocumentFormat.OpenXml.InkML;
+using FireflyHR.API.Data;
 using FireflyHR.API.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -168,6 +170,65 @@ public class TimeRecordsController : ControllerBase
             hasClockedOutToday,
             missedRecordsCount = missedCount
         });
+    }
+
+    [HttpGet("export/employee/{employeeId}")]
+    public async Task<IActionResult> ExportTimesheetToExcel(int employeeId)
+    {
+        var employee = await _context.Employees.FindAsync(employeeId);
+        if (employee == null) return NotFound("Employee not found.");
+
+        var records = await _context.TimeRecords
+            .Where(t => t.EmployeeId == employeeId)
+            .OrderByDescending(t => t.DateCreated)
+            .ToListAsync();
+
+        using (var workbook = new XLWorkbook())
+        {
+            var worksheet = workbook.Worksheets.Add("Timesheet");
+
+            // Header Row Styling
+            worksheet.Cell(1, 1).Value = "Log ID";
+            worksheet.Cell(1, 2).Value = "Employee Name";
+            worksheet.Cell(1, 3).Value = "Log Type";
+            worksheet.Cell(1, 4).Value = "Date Logged";
+            worksheet.Cell(1, 5).Value = "Timestamp";
+
+            var headerRange = worksheet.Range(1, 1, 1, 5);
+            headerRange.Style.Font.Bold = true;
+            headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#1E293B"); // Slate-800
+            headerRange.Style.Font.FontColor = XLColor.White;
+
+            // Data Rows
+            int row = 2;
+            foreach (var rec in records)
+            {
+                DateTime dt = rec.DateCreated.ToUniversalTime().AddHours(8); // Convert to PST (+8)
+
+                worksheet.Cell(row, 1).Value = rec.Id;
+                worksheet.Cell(row, 2).Value = $"{employee.LastName}, {employee.FirstName}";
+                worksheet.Cell(row, 3).Value = $"Time {rec.Type}";
+                worksheet.Cell(row, 4).Value = dt.ToString("yyyy-MM-dd");
+                worksheet.Cell(row, 5).Value = dt.ToString("hh:mm:ss tt");
+                row++;
+            }
+
+            // Adjust column widths to fit contents
+            worksheet.Columns().AdjustToContents();
+
+            using (var stream = new MemoryStream())
+            {
+                workbook.SaveAs(stream);
+                var content = stream.ToArray();
+                string fileName = $"Timesheet_{employee.LastName}_{employee.FirstName}_{DateTime.UtcNow:yyyyMMdd}.xlsx";
+
+                return File(
+                    content,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    fileName
+                );
+            }
+        }
     }
 
     [Authorize(Roles = "Admin")]

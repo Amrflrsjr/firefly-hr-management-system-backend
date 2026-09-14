@@ -46,7 +46,53 @@
         }
       }
     },
+    "/api/AttendanceRequests/employee/{employeeId}": {
+      "get": {
+        "tags": [
+          "AttendanceRequests"
+        ],
+        "parameters": [
+          {
+            "name": "employeeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
     "/api/AttendanceRequests/{id}/approve": {
+      "put": {
+        "tags": [
+          "AttendanceRequests"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/AttendanceRequests/{id}/reject": {
       "put": {
         "tags": [
           "AttendanceRequests"
@@ -736,6 +782,29 @@
         }
       }
     },
+    "/api/Leaves/employee/{employeeId}": {
+      "get": {
+        "tags": [
+          "Leaves"
+        ],
+        "parameters": [
+          {
+            "name": "employeeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
     "/api/Leaves/{id}/status": {
       "put": {
         "tags": [
@@ -771,6 +840,52 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/Leaves/{id}/reject": {
+      "put": {
+        "tags": [
+          "Leaves"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/Leaves/{id}/cancel": {
+      "put": {
+        "tags": [
+          "Leaves"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success"
@@ -859,6 +974,29 @@
         }
       }
     },
+    "/api/Overtimes/employee/{employeeId}": {
+      "get": {
+        "tags": [
+          "Overtimes"
+        ],
+        "parameters": [
+          {
+            "name": "employeeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
     "/api/Overtimes/{id}/status": {
       "put": {
         "tags": [
@@ -894,6 +1032,52 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/Overtimes/{id}/reject": {
+      "put": {
+        "tags": [
+          "Overtimes"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/Overtimes/{id}/cancel": {
+      "put": {
+        "tags": [
+          "Overtimes"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success"
@@ -1417,6 +1601,29 @@
           }
         }
       }
+    },
+    "/api/TimeRecords/export/employee/{employeeId}": {
+      "get": {
+        "tags": [
+          "TimeRecords"
+        ],
+        "parameters": [
+          {
+            "name": "employeeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1469,6 +1676,10 @@
             "$ref": "#/components/schemas/Employee"
           },
           "cashAdvanceAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "remainingBalance": {
             "type": "number",
             "format": "double"
           },

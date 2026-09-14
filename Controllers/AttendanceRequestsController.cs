@@ -30,7 +30,22 @@ public class AttendanceRequestsController : ControllerBase
 
     [HttpGet]
     public async Task<IActionResult> GetRequests() =>
-        Ok(await _context.AttendanceRequests.Include(a => a.Employee).ToListAsync());
+        Ok(await _context.AttendanceRequests
+            .Include(a => a.Employee)
+            .OrderByDescending(a => a.DateRequested)
+            .ToListAsync());
+
+    [HttpGet("employee/{employeeId}")]
+    public async Task<IActionResult> GetEmployeeRequests(int employeeId)
+    {
+        var requests = await _context.AttendanceRequests
+            .Include(a => a.Employee)
+            .Where(a => a.EmployeeId == employeeId)
+            .OrderByDescending(a => a.DateRequested)
+            .ToListAsync();
+
+        return Ok(requests);
+    }
 
     [Authorize(Roles = "Admin")]
     [HttpPut("{id}/approve")]
@@ -54,6 +69,18 @@ public class AttendanceRequestsController : ControllerBase
     }
 
     [Authorize(Roles = "Admin")]
+    [HttpPut("{id}/reject")]
+    public async Task<IActionResult> RejectRequest(int id)
+    {
+        var request = await _context.AttendanceRequests.FindAsync(id);
+        if (request == null) return NotFound("Request not found.");
+
+        request.Status = "Declined";
+        await _context.SaveChangesAsync();
+
+        return Ok(new { Message = "Request has been declined." });
+    }
+
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteRequest(int id)
     {

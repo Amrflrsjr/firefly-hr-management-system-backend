@@ -134,3 +134,14 @@ C:\Users\Ryzen 5\FireflyHR.API\obj\Debug\net10.0\ref\FireflyHR.API.dll
 C:\Users\Ryzen 5\FireflyHR.API\obj\Debug\net10.0\FireflyHR.API.sourcelink.json
 C:\Users\Ryzen 5\FireflyHR.API\bin\Debug\net10.0\task-definition.json
 C:\Users\Ryzen 5\FireflyHR.API\bin\Debug\net10.0\temp-task.json
+C:\Users\Ryzen 5\FireflyHR.API\bin\Debug\net10.0\cloudfront-alb-config.json
+C:\Users\Ryzen 5\FireflyHR.API\bin\Debug\net10.0\trust-policy.json
+C:\Users\Ryzen 5\FireflyHR.API\obj\Debug\net10.0\staticwebassets.upToDateCheck.txt
+C:\Users\Ryzen 5\FireflyHR.API\bin\Debug\net10.0\ClosedXML.dll
+C:\Users\Ryzen 5\FireflyHR.API\bin\Debug\net10.0\ClosedXML.Parser.dll
+C:\Users\Ryzen 5\FireflyHR.API\bin\Debug\net10.0\DocumentFormat.OpenXml.dll
+C:\Users\Ryzen 5\FireflyHR.API\bin\Debug\net10.0\DocumentFormat.OpenXml.Framework.dll
+C:\Users\Ryzen 5\FireflyHR.API\bin\Debug\net10.0\ExcelNumberFormat.dll
+C:\Users\Ryzen 5\FireflyHR.API\bin\Debug\net10.0\RBush.dll
+C:\Users\Ryzen 5\FireflyHR.API\bin\Debug\net10.0\SixLabors.Fonts.dll
+C:\Users\Ryzen 5\FireflyHR.API\bin\Debug\net10.0\System.IO.Packaging.dll

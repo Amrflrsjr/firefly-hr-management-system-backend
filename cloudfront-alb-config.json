@@ -1,0 +1,233 @@
+{
+    "CallerReference":  "cli-1789419672-534595",
+    "Aliases":  {
+                    "Quantity":  0
+                },
+    "DefaultRootObject":  "index.html",
+    "Origins":  {
+                    "Quantity":  2,
+                    "Items":  [
+                                  {
+                                      "Id":  "firefly-hr-frontend-767124094518.s3-website-ap-southeast-1.amazonaws.com-1789419672-632695",
+                                      "DomainName":  "firefly-hr-frontend-767124094518.s3-website-ap-southeast-1.amazonaws.com",
+                                      "OriginPath":  "",
+                                      "CustomHeaders":  {
+                                                            "Quantity":  0
+                                                        },
+                                      "CustomOriginConfig":  {
+                                                                 "HTTPPort":  80,
+                                                                 "HTTPSPort":  443,
+                                                                 "OriginProtocolPolicy":  "http-only",
+                                                                 "OriginSslProtocols":  {
+                                                                                            "Quantity":  3,
+                                                                                            "Items":  [
+                                                                                                          "TLSv1",
+                                                                                                          "TLSv1.1",
+                                                                                                          "TLSv1.2"
+                                                                                                      ]
+                                                                                        },
+                                                                 "OriginReadTimeout":  30,
+                                                                 "OriginKeepaliveTimeout":  5
+                                                             },
+                                      "ConnectionAttempts":  3,
+                                      "ConnectionTimeout":  10,
+                                      "OriginShield":  {
+                                                           "Enabled":  false
+                                                       },
+                                      "OriginAccessControlId":  ""
+                                  },
+                                  {
+                                      "Id":  "ALB-Backend",
+                                      "ConnectionTimeout":  10,
+                                      "DomainName":  "firefly-hr-alb-1608613018.ap-southeast-1.elb.amazonaws.com",
+                                      "OriginPath":  "",
+                                      "CustomOriginConfig":  {
+                                                                 "OriginReadTimeout":  30,
+                                                                 "HTTPPort":  80,
+                                                                 "HTTPSPort":  443,
+                                                                 "OriginKeepaliveTimeout":  5,
+                                                                 "OriginProtocolPolicy":  "http-only",
+                                                                 "OriginSslProtocols":  {
+                                                                                            "Quantity":  1,
+                                                                                            "Items":  [
+                                                                                                          "TLSv1.2"
+                                                                                                      ]
+                                                                                        }
+                                                             },
+                                      "ConnectionAttempts":  3,
+                                      "CustomHeaders":  {
+                                                            "Quantity":  0,
+                                                            "Items":  [
+
+                                                                      ]
+                                                        }
+                                  }
+                              ]
+                },
+    "OriginGroups":  {
+                         "Quantity":  0
+                     },
+    "DefaultCacheBehavior":  {
+                                 "TargetOriginId":  "firefly-hr-frontend-767124094518.s3-website-ap-southeast-1.amazonaws.com-1789419672-632695",
+                                 "TrustedSigners":  {
+                                                        "Enabled":  false,
+                                                        "Quantity":  0
+                                                    },
+                                 "TrustedKeyGroups":  {
+                                                          "Enabled":  false,
+                                                          "Quantity":  0
+                                                      },
+                                 "ViewerProtocolPolicy":  "allow-all",
+                                 "AllowedMethods":  {
+                                                        "Quantity":  2,
+                                                        "Items":  [
+                                                                      "HEAD",
+                                                                      "GET"
+                                                                  ],
+                                                        "CachedMethods":  {
+                                                                              "Quantity":  2,
+                                                                              "Items":  [
+                                                                                            "HEAD",
+                                                                                            "GET"
+                                                                                        ]
+                                                                          }
+                                                    },
+                                 "SmoothStreaming":  false,
+                                 "Compress":  false,
+                                 "LambdaFunctionAssociations":  {
+                                                                    "Quantity":  0
+                                                                },
+                                 "FunctionAssociations":  {
+                                                              "Quantity":  0
+                                                          },
+                                 "FieldLevelEncryptionId":  "",
+                                 "GrpcConfig":  {
+                                                    "Enabled":  false
+                                                },
+                                 "ForwardedValues":  {
+                                                         "QueryString":  false,
+                                                         "Cookies":  {
+                                                                         "Forward":  "none"
+                                                                     },
+                                                         "Headers":  {
+                                                                         "Quantity":  0
+                                                                     },
+                                                         "QueryStringCacheKeys":  {
+                                                                                      "Quantity":  0
+                                                                                  }
+                                                     },
+                                 "MinTTL":  0,
+                                 "DefaultTTL":  86400,
+                                 "MaxTTL":  31536000
+                             },
+    "CacheBehaviors":  {
+                           "Quantity":  1,
+                           "Items":  [
+                                         {
+                                             "Compress":  true,
+                                             "FieldLevelEncryptionId":  "",
+                                             "FunctionAssociations":  {
+                                                                          "Quantity":  0,
+                                                                          "Items":  [
+
+                                                                                    ]
+                                                                      },
+                                             "ViewerProtocolPolicy":  "redirect-to-https",
+                                             "ForwardedValues":  {
+                                                                     "Cookies":  {
+                                                                                     "Forward":  "all"
+                                                                                 },
+                                                                     "QueryString":  true,
+                                                                     "Headers":  {
+                                                                                     "Quantity":  3,
+                                                                                     "Items":  [
+                                                                                                   "Authorization",
+                                                                                                   "Content-Type",
+                                                                                                   "Accept"
+                                                                                               ]
+                                                                                 },
+                                                                     "QueryStringCacheKeys":  {
+                                                                                                  "Quantity":  0,
+                                                                                                  "Items":  [
+
+                                                                                                            ]
+                                                                                              }
+                                                                 },
+                                             "TargetOriginId":  "ALB-Backend",
+                                             "MaxTTL":  0,
+                                             "AllowedMethods":  {
+                                                                    "Quantity":  7,
+                                                                    "Items":  [
+                                                                                  "GET",
+                                                                                  "HEAD",
+                                                                                  "POST",
+                                                                                  "PUT",
+                                                                                  "PATCH",
+                                                                                  "OPTIONS",
+                                                                                  "DELETE"
+                                                                              ],
+                                                                    "CachedMethods":  {
+                                                                                          "Quantity":  2,
+                                                                                          "Items":  [
+                                                                                                        "GET",
+                                                                                                        "HEAD"
+                                                                                                    ]
+                                                                                      }
+                                                                },
+                                             "PathPattern":  "api/*",
+                                             "SmoothStreaming":  false,
+                                             "LambdaFunctionAssociations":  {
+                                                                                "Quantity":  0,
+                                                                                "Items":  [
+
+                                                                                          ]
+                                                                            },
+                                             "MinTTL":  0,
+                                             "DefaultTTL":  0
+                                         }
+                                     ]
+                       },
+    "CustomErrorResponses":  {
+                                 "Quantity":  2,
+                                 "Items":  [
+                                               {
+                                                   "ErrorCode":  403,
+                                                   "ResponsePagePath":  "/index.html",
+                                                   "ResponseCode":  "200",
+                                                   "ErrorCachingMinTTL":  10
+                                               },
+                                               {
+                                                   "ErrorCode":  404,
+                                                   "ResponsePagePath":  "/index.html",
+                                                   "ResponseCode":  "200",
+                                                   "ErrorCachingMinTTL":  10
+                                               }
+                                           ]
+                             },
+    "Comment":  "",
+    "Logging":  {
+                    "Enabled":  false,
+                    "IncludeCookies":  false,
+                    "Bucket":  "",
+                    "Prefix":  ""
+                },
+    "PriceClass":  "PriceClass_All",
+    "Enabled":  true,
+    "ViewerCertificate":  {
+                              "CloudFrontDefaultCertificate":  true,
+                              "SSLSupportMethod":  "vip",
+                              "MinimumProtocolVersion":  "TLSv1",
+                              "CertificateSource":  "cloudfront"
+                          },
+    "Restrictions":  {
+                         "GeoRestriction":  {
+                                                "RestrictionType":  "none",
+                                                "Quantity":  0
+                                            }
+                     },
+    "WebACLId":  "",
+    "HttpVersion":  "http2",
+    "IsIPV6Enabled":  true,
+    "ContinuousDeploymentPolicyId":  "",
+    "Staging":  false
+}

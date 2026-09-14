@@ -20,6 +20,28 @@ public class LeavesController : ControllerBase
     {
         var leaves = await _context.Leaves
             .Include(l => l.Employee)
+            .OrderByDescending(l => l.LeaveDate)
+            .Select(l => new
+            {
+                l.Id,
+                l.EmployeeId,
+                EmployeeName = l.Employee != null ? $"{l.Employee.LastName}, {l.Employee.FirstName}" : "Unknown Employee",
+                l.LeaveDate,
+                l.LeaveHours,
+                l.Status
+            })
+            .ToListAsync();
+
+        return Ok(leaves);
+    }
+
+    [HttpGet("employee/{employeeId}")]
+    public async Task<IActionResult> GetEmployeeLeaves(int employeeId)
+    {
+        var leaves = await _context.Leaves
+            .Include(l => l.Employee)
+            .Where(l => l.EmployeeId == employeeId)
+            .OrderByDescending(l => l.LeaveDate)
             .Select(l => new
             {
                 l.Id,
@@ -52,6 +74,34 @@ public class LeavesController : ControllerBase
         leave.Status = status;
         await _context.SaveChangesAsync();
         return NoContent();
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpPut("{id}/reject")]
+    public async Task<IActionResult> RejectLeave(int id)
+    {
+        var leave = await _context.Leaves.FindAsync(id);
+        if (leave == null) return NotFound("Leave request not found.");
+
+        leave.Status = "Declined";
+        await _context.SaveChangesAsync();
+        return Ok(new { Message = "Leave request declined." });
+    }
+
+    [HttpPut("{id}/cancel")]
+    public async Task<IActionResult> CancelLeave(int id)
+    {
+        var leave = await _context.Leaves.FindAsync(id);
+        if (leave == null) return NotFound("Leave request not found.");
+
+        if (leave.Status != "In Review")
+        {
+            return BadRequest("Only pending requests can be cancelled.");
+        }
+
+        leave.Status = "Cancelled";
+        await _context.SaveChangesAsync();
+        return Ok(new { Message = "Leave request cancelled." });
     }
 
     [Authorize(Roles = "Admin")]

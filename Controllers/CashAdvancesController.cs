@@ -23,6 +23,7 @@ public class CashAdvancesController : ControllerBase
     public async Task<ActionResult<CashAdvance>> PostCashAdvance(CashAdvance cashAdvance)
     {
         cashAdvance.Status = "Active";
+        cashAdvance.RemainingBalance = cashAdvance.CashAdvanceAmount;
         _context.CashAdvances.Add(cashAdvance);
         await _context.SaveChangesAsync();
         return Ok(cashAdvance);

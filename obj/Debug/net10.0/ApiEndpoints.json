@@ -58,6 +58,38 @@
     "ReturnTypes": []
   },
   {
+    "ContainingType": "FireflyHR.API.Controllers.AttendanceRequestsController",
+    "Method": "RejectRequest",
+    "RelativePath": "api/AttendanceRequests/{id}/reject",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.AttendanceRequestsController",
+    "Method": "GetEmployeeRequests",
+    "RelativePath": "api/AttendanceRequests/employee/{employeeId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "employeeId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
     "ContainingType": "FireflyHR.API.Controllers.AuthController",
     "Method": "ChangePassword",
     "RelativePath": "api/Auth/change-password",
@@ -444,6 +476,38 @@
   },
   {
     "ContainingType": "FireflyHR.API.Controllers.LeavesController",
+    "Method": "CancelLeave",
+    "RelativePath": "api/Leaves/{id}/cancel",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.LeavesController",
+    "Method": "RejectLeave",
+    "RelativePath": "api/Leaves/{id}/reject",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.LeavesController",
     "Method": "UpdateLeaveStatus",
     "RelativePath": "api/Leaves/{id}/status",
     "HttpMethod": "PUT",
@@ -458,6 +522,22 @@
       {
         "Name": "status",
         "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.LeavesController",
+    "Method": "GetEmployeeLeaves",
+    "RelativePath": "api/Leaves/employee/{employeeId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "employeeId",
+        "Type": "System.Int32",
         "IsRequired": true
       }
     ],
@@ -517,6 +597,38 @@
   },
   {
     "ContainingType": "FireflyHR.API.Controllers.OvertimesController",
+    "Method": "CancelOvertime",
+    "RelativePath": "api/Overtimes/{id}/cancel",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.OvertimesController",
+    "Method": "RejectOvertime",
+    "RelativePath": "api/Overtimes/{id}/reject",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.OvertimesController",
     "Method": "UpdateOvertimeStatus",
     "RelativePath": "api/Overtimes/{id}/status",
     "HttpMethod": "PUT",
@@ -531,6 +643,22 @@
       {
         "Name": "status",
         "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.OvertimesController",
+    "Method": "GetEmployeeOvertimes",
+    "RelativePath": "api/Overtimes/employee/{employeeId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "employeeId",
+        "Type": "System.Int32",
         "IsRequired": true
       }
     ],
@@ -790,6 +918,22 @@
         "StatusCode": 200
       }
     ]
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.TimeRecordsController",
+    "Method": "ExportTimesheetToExcel",
+    "RelativePath": "api/TimeRecords/export/employee/{employeeId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "employeeId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
   },
   {
     "ContainingType": "FireflyHR.API.Controllers.TimeRecordsController",

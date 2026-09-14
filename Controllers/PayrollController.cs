@@ -208,7 +208,6 @@ public class PayrollController : ControllerBase
         decimal totalDeductions = lateDeduction + undertimeDeduction + absentDeduction + queryParams.CashAdvanceDeduction + govtContributions;
         decimal netReceivable = grossEarnings - totalDeductions;
 
-        // 2. Persist Complete Breakdown into PaySlips Table
         var paySlip = new PaySlip
         {
             EmployeeId = employeeId,
@@ -232,6 +231,36 @@ public class PayrollController : ControllerBase
         };
 
         _context.PaySlips.Add(paySlip);
+
+        // Inside ComputePayroll method right after _context.PaySlips.Add(paySlip);
+
+        if (queryParams.CashAdvanceDeduction > 0)
+        {
+            var activeAdvances = await _context.CashAdvances
+                .Where(c => c.EmployeeId == employeeId && c.Status == "Active")
+                .OrderBy(c => c.Date)
+                .ToListAsync();
+
+            decimal remainingDeductionToApply = queryParams.CashAdvanceDeduction;
+
+            foreach (var advance in activeAdvances)
+            {
+                if (remainingDeductionToApply <= 0) break;
+
+                decimal currentBalance = advance.RemainingBalance > 0 ? advance.RemainingBalance : advance.CashAdvanceAmount;
+                decimal deductionForThisRecord = Math.Min(remainingDeductionToApply, currentBalance);
+
+                advance.RemainingBalance = currentBalance - deductionForThisRecord;
+                remainingDeductionToApply -= deductionForThisRecord;
+
+                if (advance.RemainingBalance <= 0)
+                {
+                    advance.RemainingBalance = 0;
+                    advance.Status = "Paid";
+                }
+            }
+        }
+
         await _context.SaveChangesAsync();
 
         return Ok(new
@@ -253,6 +282,8 @@ public class PayrollController : ControllerBase
             netReceivable = Math.Round(netReceivable, 2)
         });
     }
+
+
 
     [HttpGet("history/{employeeId}")]
     public async Task<IActionResult> GetPayrollHistory(int employeeId)
@@ -293,8 +324,45 @@ public class PayrollController : ControllerBase
         var paySlip = await _context.PaySlips.FindAsync(id);
         if (paySlip == null) return NotFound("Pay slip record not found.");
 
+        // 1. If a cash advance deduction was part of this payslip, restore balance and status
+        if (paySlip.CashAdvanceDeduction > 0)
+        {
+            var employeeAdvances = await _context.CashAdvances
+                .Where(c => c.EmployeeId == paySlip.EmployeeId)
+                .OrderByDescending(c => c.Date)
+                .ToListAsync();
+
+            decimal amountToRestore = paySlip.CashAdvanceDeduction;
+
+            foreach (var advance in employeeAdvances)
+            {
+                if (amountToRestore <= 0) break;
+
+                // Calculate how much can be restored to this specific advance
+                decimal maxRestorable = advance.CashAdvanceAmount - advance.RemainingBalance;
+                decimal restoreChunk = Math.Min(amountToRestore, maxRestorable);
+
+                // If maxRestorable was 0 (e.g. legacy records without RemainingBalance initialized), restore fully
+                if (maxRestorable == 0 && advance.RemainingBalance == 0)
+                {
+                    restoreChunk = Math.Min(amountToRestore, advance.CashAdvanceAmount);
+                }
+
+                advance.RemainingBalance += restoreChunk;
+                amountToRestore -= restoreChunk;
+
+                // Re-open status to Active if balance is restored
+                if (advance.RemainingBalance > 0)
+                {
+                    advance.Status = "Active";
+                }
+            }
+        }
+
+        // 2. Delete the pay slip
         _context.PaySlips.Remove(paySlip);
         await _context.SaveChangesAsync();
-        return Ok(new { message = "Pay slip record deleted successfully." });
+
+        return Ok(new { message = "Pay slip record deleted successfully and cash advance balance restored." });
     }
 }

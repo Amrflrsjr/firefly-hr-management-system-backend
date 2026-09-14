@@ -20,6 +20,28 @@ public class OvertimesController : ControllerBase
     {
         var overtimes = await _context.Overtimes
             .Include(o => o.Employee)
+            .OrderByDescending(o => o.OvertimeDate)
+            .Select(o => new
+            {
+                o.Id,
+                o.EmployeeId,
+                EmployeeName = o.Employee != null ? $"{o.Employee.LastName}, {o.Employee.FirstName}" : "Unknown Employee",
+                o.OvertimeDate,
+                o.OvertimeHours,
+                o.Status
+            })
+            .ToListAsync();
+
+        return Ok(overtimes);
+    }
+
+    [HttpGet("employee/{employeeId}")]
+    public async Task<IActionResult> GetEmployeeOvertimes(int employeeId)
+    {
+        var overtimes = await _context.Overtimes
+            .Include(o => o.Employee)
+            .Where(o => o.EmployeeId == employeeId)
+            .OrderByDescending(o => o.OvertimeDate)
             .Select(o => new
             {
                 o.Id,
@@ -54,6 +76,33 @@ public class OvertimesController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Roles = "Admin")]
+    [HttpPut("{id}/reject")]
+    public async Task<IActionResult> RejectOvertime(int id)
+    {
+        var ot = await _context.Overtimes.FindAsync(id);
+        if (ot == null) return NotFound("Overtime record not found.");
+
+        ot.Status = "Declined";
+        await _context.SaveChangesAsync();
+        return Ok(new { Message = "Overtime request declined." });
+    }
+
+    [HttpPut("{id}/cancel")]
+    public async Task<IActionResult> CancelOvertime(int id)
+    {
+        var ot = await _context.Overtimes.FindAsync(id);
+        if (ot == null) return NotFound("Overtime record not found.");
+
+        if (ot.Status != "In Review")
+        {
+            return BadRequest("Only pending overtime requests can be cancelled.");
+        }
+
+        ot.Status = "Cancelled";
+        await _context.SaveChangesAsync();
+        return Ok(new { Message = "Overtime request cancelled." });
+    }
 
     [Authorize(Roles = "Admin")]
     [HttpDelete("{id}")]
