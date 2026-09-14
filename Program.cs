@@ -10,6 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
@@ -17,7 +18,9 @@ builder.Services.AddCors(options =>
         policy.SetIsOriginAllowed(origin =>
         {
             var uri = new Uri(origin);
-            return uri.Host == "localhost" || uri.Host.EndsWith(".devtunnels.ms");
+            return uri.Host == "localhost" ||
+                   uri.Host.EndsWith(".devtunnels.ms") ||
+                   uri.Host == "hr.fireflycraftsph.com";
         })
               .AllowAnyHeader()
               .AllowAnyMethod()
@@ -80,12 +83,9 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Enable Swagger globally so it works on your production domain too
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseCors("AllowReactApp");
 

@@ -1,0 +1,14 @@
+version: 1.0
+runtime: dotnet8
+build:
+  commands:
+    build:
+      - dotnet publish FireflyHR.API/FireflyHR.API.csproj -c Release -o out
+run:
+  runtime-version: 8.0
+  command: dotnet out/FireflyHR.API.dll
+  network:
+    port: 8080
+  env:
+    - name: ASPNETCORE_ENVIRONMENT
+      value: Production

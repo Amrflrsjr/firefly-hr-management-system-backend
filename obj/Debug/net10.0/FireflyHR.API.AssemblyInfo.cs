@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FireflyHR.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6e6e39953837d47b27d5f8aefe8cd32722be9c9b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a9068bcc788f51047db64eb5587302e348e16062")]
 [assembly: System.Reflection.AssemblyProductAttribute("FireflyHR.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FireflyHR.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
