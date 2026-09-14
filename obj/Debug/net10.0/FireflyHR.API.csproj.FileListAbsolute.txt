@@ -131,5 +131,6 @@ C:\Users\Ryzen 5\FireflyHR.API\obj\Debug\net10.0\refint\FireflyHR.API.dll
 C:\Users\Ryzen 5\FireflyHR.API\obj\Debug\net10.0\FireflyHR.API.pdb
 C:\Users\Ryzen 5\FireflyHR.API\obj\Debug\net10.0\FireflyHR.API.genruntimeconfig.cache
 C:\Users\Ryzen 5\FireflyHR.API\obj\Debug\net10.0\ref\FireflyHR.API.dll
-C:\Users\Ryzen 5\FireflyHR.API\obj\Debug\net10.0\staticwebassets.upToDateCheck.txt
 C:\Users\Ryzen 5\FireflyHR.API\obj\Debug\net10.0\FireflyHR.API.sourcelink.json
+C:\Users\Ryzen 5\FireflyHR.API\bin\Debug\net10.0\task-definition.json
+C:\Users\Ryzen 5\FireflyHR.API\bin\Debug\net10.0\temp-task.json

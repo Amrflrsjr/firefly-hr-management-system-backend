@@ -24,13 +24,22 @@
         },
         {
           "name": "ConnectionStrings__DefaultConnection",
-          "value": "Host=YOUR_ACTUAL_CLOUD_DB_HOST;Port=5432;Database=firefly_hr_db;Username=firefly;Password=firefly_dev_password"
+          "value": "Host=firefly-hr-db.c5ca0e0ia3py.ap-southeast-1.rds.amazonaws.com;Port=5432;Database=firefly_hr_db;Username=firefly;Password=firefly_dev_password"
         },
         {
           "name": "Jwt__Key",
           "value": "FireflyCraftsPH_SuperSecretKey_2026_SecureKey!"
         }
-      ]
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/firefly-backend-task",
+          "awslogs-region": "ap-southeast-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
     }
   ]
 }

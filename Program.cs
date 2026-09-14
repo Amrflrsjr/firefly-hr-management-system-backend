@@ -11,20 +11,25 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
+// Configure CORS Policy
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
     {
         policy.SetIsOriginAllowed(origin =>
         {
+            if (string.IsNullOrEmpty(origin)) return false;
             var uri = new Uri(origin);
+
             return uri.Host == "localhost" ||
                    uri.Host.EndsWith(".devtunnels.ms") ||
+                   uri.Host.EndsWith(".cloudfront.net") ||
+                   uri.Host.EndsWith(".amazonaws.com") ||
                    uri.Host == "hr.fireflycraftsph.com";
         })
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials();
     });
 });
 
@@ -83,13 +88,11 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// Enable Swagger globally so it works on your production domain too
+// Enable Swagger globally for development and testing
 app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseCors("AllowReactApp");
-
-//app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
