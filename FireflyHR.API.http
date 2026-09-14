@@ -1,0 +1,6 @@
+@FireflyHR.API_HostAddress = http://localhost:5210
+
+GET {{FireflyHR.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

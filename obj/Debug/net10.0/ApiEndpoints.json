@@ -1,0 +1,836 @@
+[
+  {
+    "ContainingType": "FireflyHR.API.Controllers.AttendanceRequestsController",
+    "Method": "CreateRequest",
+    "RelativePath": "api/AttendanceRequests",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "FireflyHR.API.Models.AttendanceRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.AttendanceRequestsController",
+    "Method": "GetRequests",
+    "RelativePath": "api/AttendanceRequests",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.AttendanceRequestsController",
+    "Method": "DeleteRequest",
+    "RelativePath": "api/AttendanceRequests/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.AttendanceRequestsController",
+    "Method": "ApproveRequest",
+    "RelativePath": "api/AttendanceRequests/{id}/approve",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.AuthController",
+    "Method": "ChangePassword",
+    "RelativePath": "api/Auth/change-password",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "FireflyHR.API.Models.UserPasswordUpdateDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.AuthController",
+    "Method": "Login",
+    "RelativePath": "api/Auth/login",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "FireflyHR.API.Models.UserLoginDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.AuthController",
+    "Method": "Logout",
+    "RelativePath": "api/Auth/logout",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.AuthController",
+    "Method": "UpdateUsername",
+    "RelativePath": "api/Auth/update-username",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "FireflyHR.API.Models.UsernameUpdateDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.CashAdvancesController",
+    "Method": "GetCashAdvances",
+    "RelativePath": "api/CashAdvances",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "System.Collections.Generic.IEnumerable\u00601[[FireflyHR.API.Models.CashAdvance, FireflyHR.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.CashAdvancesController",
+    "Method": "PostCashAdvance",
+    "RelativePath": "api/CashAdvances",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "cashAdvance",
+        "Type": "FireflyHR.API.Models.CashAdvance",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "FireflyHR.API.Models.CashAdvance",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.CashAdvancesController",
+    "Method": "UpdateCashAdvance",
+    "RelativePath": "api/CashAdvances/{id}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "cashAdvance",
+        "Type": "FireflyHR.API.Models.CashAdvance",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.CashAdvancesController",
+    "Method": "DeleteCashAdvance",
+    "RelativePath": "api/CashAdvances/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.EmployeesController",
+    "Method": "GetEmployees",
+    "RelativePath": "api/Employees",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "System.Collections.Generic.IEnumerable\u00601[[FireflyHR.API.Models.Employee, FireflyHR.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.EmployeesController",
+    "Method": "PostEmployee",
+    "RelativePath": "api/Employees",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "employee",
+        "Type": "FireflyHR.API.Models.Employee",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "FireflyHR.API.Models.Employee",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.EmployeesController",
+    "Method": "DeleteEmployee",
+    "RelativePath": "api/Employees/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.EmployeesController",
+    "Method": "GetEmployee",
+    "RelativePath": "api/Employees/{id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "FireflyHR.API.Models.Employee",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.EmployeesController",
+    "Method": "UpdateEmployeeProfile",
+    "RelativePath": "api/Employees/profile/{id}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "updatedInfo",
+        "Type": "FireflyHR.API.Models.EmployeeUpdateDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.HolidaysController",
+    "Method": "GetHolidays",
+    "RelativePath": "api/Holidays",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "System.Collections.Generic.IEnumerable\u00601[[FireflyHR.API.Models.Holiday, FireflyHR.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.HolidaysController",
+    "Method": "PostHoliday",
+    "RelativePath": "api/Holidays",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "holiday",
+        "Type": "FireflyHR.API.Models.Holiday",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "FireflyHR.API.Models.Holiday",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.HolidaysController",
+    "Method": "DeleteHoliday",
+    "RelativePath": "api/Holidays/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.HolidaysController",
+    "Method": "UpdateHoliday",
+    "RelativePath": "api/Holidays/{id}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "holiday",
+        "Type": "FireflyHR.API.Models.Holiday",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.LeavesController",
+    "Method": "GetLeaves",
+    "RelativePath": "api/Leaves",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.LeavesController",
+    "Method": "PostLeave",
+    "RelativePath": "api/Leaves",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "leave",
+        "Type": "FireflyHR.API.Models.Leave",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "FireflyHR.API.Models.Leave",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.LeavesController",
+    "Method": "DeleteLeave",
+    "RelativePath": "api/Leaves/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.LeavesController",
+    "Method": "UpdateLeaveStatus",
+    "RelativePath": "api/Leaves/{id}/status",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "status",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.OvertimesController",
+    "Method": "GetOvertimes",
+    "RelativePath": "api/Overtimes",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.OvertimesController",
+    "Method": "PostOvertime",
+    "RelativePath": "api/Overtimes",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "overtime",
+        "Type": "FireflyHR.API.Models.Overtime",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "FireflyHR.API.Models.Overtime",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.OvertimesController",
+    "Method": "DeleteOvertime",
+    "RelativePath": "api/Overtimes/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.OvertimesController",
+    "Method": "UpdateOvertimeStatus",
+    "RelativePath": "api/Overtimes/{id}/status",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "status",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.PayrollController",
+    "Method": "DeletePaySlip",
+    "RelativePath": "api/Payroll/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.PayrollController",
+    "Method": "CalculatePayrollParams",
+    "RelativePath": "api/Payroll/calculate-params/{employeeId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "employeeId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "payPeriod",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.PayrollController",
+    "Method": "ComputePayroll",
+    "RelativePath": "api/Payroll/compute/{employeeId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "employeeId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "PayPeriod",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "DaysWorked",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "OvertimeHours",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      },
+      {
+        "Name": "RegularHolidayHours",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      },
+      {
+        "Name": "SpecialNonWorkingHours",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      },
+      {
+        "Name": "ApprovedLeaveHours",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      },
+      {
+        "Name": "LateHours",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      },
+      {
+        "Name": "UndertimeHours",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      },
+      {
+        "Name": "AbsentDays",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "CashAdvanceDeduction",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.PayrollController",
+    "Method": "GetPayrollHistory",
+    "RelativePath": "api/Payroll/history/{employeeId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "employeeId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.ThirteenthMonthController",
+    "Method": "ComputeThirteenthMonth",
+    "RelativePath": "api/ThirteenthMonth/compute/{employeeId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "employeeId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "totalAnnualBasicIncome",
+        "Type": "System.Decimal",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.TimeRecordsController",
+    "Method": "GetTimeRecords",
+    "RelativePath": "api/TimeRecords",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": [
+      {
+        "Type": "System.Collections.Generic.IEnumerable\u00601[[FireflyHR.API.Models.TimeRecord, FireflyHR.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.TimeRecordsController",
+    "Method": "UpdateTimeRecord",
+    "RelativePath": "api/TimeRecords/{id}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "timeRecord",
+        "Type": "FireflyHR.API.Models.TimeRecord",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.TimeRecordsController",
+    "Method": "DeleteTimeRecord",
+    "RelativePath": "api/TimeRecords/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.TimeRecordsController",
+    "Method": "PostTimeRecordsBulk",
+    "RelativePath": "api/TimeRecords/bulk",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "records",
+        "Type": "System.Collections.Generic.List\u00601[[FireflyHR.API.Models.TimeRecord, FireflyHR.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.TimeRecordsController",
+    "Method": "GetDashboardMetrics",
+    "RelativePath": "api/TimeRecords/dashboard-metrics/{employeeId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "employeeId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.TimeRecordsController",
+    "Method": "GetEmployeeTimeRecords",
+    "RelativePath": "api/TimeRecords/employee/{employeeId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "employeeId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "System.Collections.Generic.IEnumerable\u00601[[FireflyHR.API.Models.TimeRecord, FireflyHR.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.TimeRecordsController",
+    "Method": "GetLatestTimeInToday",
+    "RelativePath": "api/TimeRecords/latest-today/{employeeId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "employeeId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.TimeRecordsController",
+    "Method": "RecordTime",
+    "RelativePath": "api/TimeRecords/time-in-out",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "timeRecord",
+        "Type": "FireflyHR.API.Models.TimeRecord",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "FireflyHR.API.Models.TimeRecord",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  }
+]
