@@ -1,0 +1,36 @@
+{
+  "family": "firefly-backend-task",
+  "executionRoleArn": "arn:aws:iam::767124094518:role/ecsTaskExecutionRole",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "containerDefinitions": [
+    {
+      "name": "firefly-backend-container",
+      "image": "767124094518.dkr.ecr.ap-southeast-1.amazonaws.com/firefly-hr-backend:latest",
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "hostPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        {
+          "name": "ASPNETCORE_ENVIRONMENT",
+          "value": "Production"
+        },
+        {
+          "name": "ConnectionStrings__DefaultConnection",
+          "value": "Host=YOUR_ACTUAL_CLOUD_DB_HOST;Port=5432;Database=firefly_hr_db;Username=firefly;Password=firefly_dev_password"
+        },
+        {
+          "name": "Jwt__Key",
+          "value": "FireflyCraftsPH_SuperSecretKey_2026_SecureKey!"
+        }
+      ]
+    }
+  ]
+}
