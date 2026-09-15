@@ -101,13 +101,62 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// Automatically apply all pending EF Core migrations on container startup/deployment
-// Automatically sync database schema on every deployment/startup (No migration files needed)
+// Automatically sync all required database columns on every startup / deployment
 using (var scope = app.Services.CreateScope())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    dbContext.Database.Migrate(); // Automatically runs pending migrations on startup!
+    var services = scope.ServiceProvider;
+    try
+    {
+        var dbContext = services.GetRequiredService<AppDbContext>();
+
+        dbContext.Database.ExecuteSqlRaw(@"
+            DO $$ 
+            BEGIN 
+                -- 1. Employees table columns
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Employees' and column_name='DailyAllowance') THEN
+                    ALTER TABLE ""Employees"" ADD COLUMN ""DailyAllowance"" numeric NOT NULL DEFAULT 0.0;
+                END IF;
+
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Employees' and column_name='HasGovernmentDeductions') THEN
+                    ALTER TABLE ""Employees"" ADD COLUMN ""HasGovernmentDeductions"" boolean NOT NULL DEFAULT true;
+                END IF;
+
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='Employees' and column_name='DeductionType') THEN
+                    ALTER TABLE ""Employees"" ADD COLUMN ""DeductionType"" text DEFAULT 'Per Pay Period';
+                END IF;
+
+                -- 2. PaySlips table columns
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='PaySlips' and column_name='DailyAllowance') THEN
+                    ALTER TABLE ""PaySlips"" ADD COLUMN ""DailyAllowance"" numeric NOT NULL DEFAULT 0.0;
+                END IF;
+
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='PaySlips' and column_name='SssDeduction') THEN
+                    ALTER TABLE ""PaySlips"" ADD COLUMN ""SssDeduction"" numeric NOT NULL DEFAULT 0.0;
+                END IF;
+
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='PaySlips' and column_name='PhilHealthDeduction') THEN
+                    ALTER TABLE ""PaySlips"" ADD COLUMN ""PhilHealthDeduction"" numeric NOT NULL DEFAULT 0.0;
+                END IF;
+
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='PaySlips' and column_name='PagIbigDeduction') THEN
+                    ALTER TABLE ""PaySlips"" ADD COLUMN ""PagIbigDeduction"" numeric NOT NULL DEFAULT 0.0;
+                END IF;
+
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='PaySlips' and column_name='GovernmentContributions') THEN
+                    ALTER TABLE ""PaySlips"" ADD COLUMN ""GovernmentContributions"" numeric NOT NULL DEFAULT 0.0;
+                END IF;
+
+            END $$;
+        ");
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Schema auto-update failed.");
+    }
 }
+
+app.Run();
 
 app.Run();
 
