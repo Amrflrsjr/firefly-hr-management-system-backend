@@ -10,6 +10,7 @@ public class PaySlip
 
     // Earnings Breakdown
     public decimal DailySalary { get; set; }
+    public decimal DailyAllowance { get; set; } // Updated from monthly allowance
     public decimal BasicPay { get; set; }
     public decimal OvertimePay { get; set; }
     public decimal RegularHolidayPay { get; set; }
@@ -22,7 +23,13 @@ public class PaySlip
     public decimal UndertimeDeduction { get; set; }
     public decimal AbsentDeduction { get; set; }
     public decimal CashAdvanceDeduction { get; set; }
-    public decimal GovernmentContributions { get; set; }
+
+    // Government Deductions Breakdown
+    public decimal SssDeduction { get; set; }
+    public decimal PhilHealthDeduction { get; set; }
+    public decimal PagIbigDeduction { get; set; }
+    public decimal GovernmentContributions { get; set; } // Total sum of SSS, PhilHealth, & Pag-IBIG
+
     public decimal TotalDeductions { get; set; }
 
     // Final Total

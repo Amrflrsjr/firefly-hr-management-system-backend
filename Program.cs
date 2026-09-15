@@ -95,10 +95,23 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseCors("AllowReactApp");
-
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
+
+// Automatically apply pending EF Core migrations on container startup
+// Force-apply missing column directly on container startup
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    dbContext.Database.ExecuteSqlRaw(@"
+        DO $$ 
+        BEGIN 
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='CashAdvances' and column_name='RemainingBalance') THEN
+                ALTER TABLE ""CashAdvances"" ADD COLUMN ""RemainingBalance"" numeric NOT NULL DEFAULT 0.0;
+            END IF;
+        END $$;
+    ");
+}
 
 app.Run();

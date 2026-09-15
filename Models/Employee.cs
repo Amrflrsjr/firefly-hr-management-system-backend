@@ -29,8 +29,9 @@ public class Employee
     public DateTime DeclaredDateHired { get; set; }
     public string OfficeType { get; set; } = "Admin"; // Admin or Production
     public decimal DailySalary { get; set; }
-    public decimal MonthlyAllowance { get; set; }
+    public decimal DailyAllowance { get; set; }
     public string BloodType { get; set; } = string.Empty;
+    public bool HasGovernmentDeductions { get; set; } = false;
     public string SssNumber { get; set; } = string.Empty;
     public string PhilHealthNumber { get; set; } = string.Empty;
     public string PagIbigNumber { get; set; } = string.Empty;

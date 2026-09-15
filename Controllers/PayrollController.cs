@@ -186,8 +186,8 @@ public class PayrollController : ControllerBase
             return BadRequest($"A {periodName} pay slip already exists for this month. Delete it from History first to recalculate.");
         }
 
-        // 1. Calculate Earnings & Deductions
-        decimal dailyAllowance = employee.MonthlyAllowance / 22.0m;
+        // 1. Calculate Earnings & Deductions using Daily Allowance
+        decimal dailyAllowance = employee.DailyAllowance; // Updated from MonthlyAllowance / 22.0m
         decimal combinedDailyRate = employee.DailySalary + dailyAllowance;
         decimal hourlyRate = employee.DailySalary / 8.0m;
 
@@ -203,9 +203,24 @@ public class PayrollController : ControllerBase
         decimal undertimeDeduction = queryParams.UndertimeHours * hourlyRate;
         decimal absentDeduction = queryParams.AbsentDays * combinedDailyRate;
 
-        decimal govtContributions = employee.DeductionType == "Per Pay Period" ? 590.0m : 1180.0m;
+        // 2. Government Deductions Breakdown (Controlled by toggle)
+        decimal sssDeduction = 0;
+        decimal philHealthDeduction = 0;
+        decimal pagIbigDeduction = 0;
 
-        decimal totalDeductions = lateDeduction + undertimeDeduction + absentDeduction + queryParams.CashAdvanceDeduction + govtContributions;
+        if (employee.HasGovernmentDeductions)
+        {
+            bool isPerPeriod = employee.DeductionType == "Per Pay Period";
+
+            // Standardized or tier-based breakdown values per period
+            sssDeduction = isPerPeriod ? 400.0m : 800.0m;
+            philHealthDeduction = isPerPeriod ? 150.0m : 300.0m;
+            pagIbigDeduction = isPerPeriod ? 40.0m : 80.0m;
+        }
+
+        decimal totalGovtContributions = sssDeduction + philHealthDeduction + pagIbigDeduction;
+
+        decimal totalDeductions = lateDeduction + undertimeDeduction + absentDeduction + queryParams.CashAdvanceDeduction + totalGovtContributions;
         decimal netReceivable = grossEarnings - totalDeductions;
 
         var paySlip = new PaySlip
@@ -214,6 +229,7 @@ public class PayrollController : ControllerBase
             PayPeriod = periodName,
             PayPeriodEnd = now,
             DailySalary = employee.DailySalary,
+            DailyAllowance = dailyAllowance,
             BasicPay = Math.Round(basicPay, 2),
             OvertimePay = Math.Round(overtimePay, 2),
             RegularHolidayPay = Math.Round(regularHolidayPay, 2),
@@ -224,7 +240,13 @@ public class PayrollController : ControllerBase
             UndertimeDeduction = Math.Round(undertimeDeduction, 2),
             AbsentDeduction = Math.Round(absentDeduction, 2),
             CashAdvanceDeduction = Math.Round(queryParams.CashAdvanceDeduction, 2),
-            GovernmentContributions = Math.Round(govtContributions, 2),
+
+            // Explicit Government Breakdown fields
+            SssDeduction = Math.Round(sssDeduction, 2),
+            PhilHealthDeduction = Math.Round(philHealthDeduction, 2),
+            PagIbigDeduction = Math.Round(pagIbigDeduction, 2),
+            GovernmentContributions = Math.Round(totalGovtContributions, 2),
+
             TotalDeductions = Math.Round(totalDeductions, 2),
             NetReceivable = Math.Round(netReceivable, 2),
             DateCreated = now
@@ -232,8 +254,7 @@ public class PayrollController : ControllerBase
 
         _context.PaySlips.Add(paySlip);
 
-        // Inside ComputePayroll method right after _context.PaySlips.Add(paySlip);
-
+        // Handle Cash Advance Balance Reductions
         if (queryParams.CashAdvanceDeduction > 0)
         {
             var activeAdvances = await _context.CashAdvances
@@ -267,6 +288,7 @@ public class PayrollController : ControllerBase
         {
             employeeName = $"{employee.LastName}, {employee.FirstName}",
             dailySalary = employee.DailySalary,
+            dailyAllowance = dailyAllowance,
             basicPay = Math.Round(basicPay, 2),
             overtimePay = Math.Round(overtimePay, 2),
             regularHolidayPay = Math.Round(regularHolidayPay, 2),
@@ -277,12 +299,17 @@ public class PayrollController : ControllerBase
             undertimeDeduction = Math.Round(undertimeDeduction, 2),
             absentDeduction = Math.Round(absentDeduction, 2),
             cashAdvanceDeduction = Math.Round(queryParams.CashAdvanceDeduction, 2),
-            governmentContributions = Math.Round(govtContributions, 2),
+
+            // Return individual deduction components to the client UI
+            sssDeduction = Math.Round(sssDeduction, 2),
+            philHealthDeduction = Math.Round(philHealthDeduction, 2),
+            pagIbigDeduction = Math.Round(pagIbigDeduction, 2),
+            governmentContributions = Math.Round(totalGovtContributions, 2),
+
             totalDeductions = Math.Round(totalDeductions, 2),
             netReceivable = Math.Round(netReceivable, 2)
         });
     }
-
 
 
     [HttpGet("history/{employeeId}")]
@@ -299,6 +326,7 @@ public class PayrollController : ControllerBase
                 p.PayPeriodEnd,
                 EmployeeName = p.Employee != null ? $"{p.Employee.LastName}, {p.Employee.FirstName}" : "",
                 DailySalary = p.DailySalary > 0 ? p.DailySalary : (p.Employee != null ? p.Employee.DailySalary : 0),
+                DailyAllowance = p.DailyAllowance > 0 ? p.DailyAllowance : (p.Employee != null ? p.Employee.DailyAllowance : 0),
                 p.BasicPay,
                 p.OvertimePay,
                 p.RegularHolidayPay,
@@ -309,7 +337,13 @@ public class PayrollController : ControllerBase
                 p.UndertimeDeduction,
                 p.AbsentDeduction,
                 p.CashAdvanceDeduction,
+
+                // Added Breakdown for History
+                p.SssDeduction,
+                p.PhilHealthDeduction,
+                p.PagIbigDeduction,
                 p.GovernmentContributions,
+
                 p.TotalDeductions,
                 p.NetReceivable
             })
