@@ -23,15 +23,52 @@ public class CashAdvancesController : ControllerBase
             .ToListAsync();
     }
 
-    [Authorize(Roles = "Admin")]
+    // Remove [Authorize(Roles = "Admin")] so employees can submit requests
     [HttpPost]
     public async Task<ActionResult<CashAdvance>> PostCashAdvance(CashAdvance cashAdvance)
     {
-        cashAdvance.Status = "Active";
+        cashAdvance.Status = "Pending"; // Set default status to Pending for review
         cashAdvance.RemainingBalance = cashAdvance.CashAdvanceAmount;
         _context.CashAdvances.Add(cashAdvance);
         await _context.SaveChangesAsync();
         return Ok(cashAdvance);
+    }
+
+    // Admin approve endpoint
+    [Authorize(Roles = "Admin")]
+    [HttpPut("{id}/approve")]
+    public async Task<IActionResult> ApproveCashAdvance(int id)
+    {
+        var ca = await _context.CashAdvances.FindAsync(id);
+        if (ca == null) return NotFound();
+
+        ca.Status = "Active"; // Set status to Active upon approval
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // Admin decline endpoint
+    [Authorize(Roles = "Admin")]
+    [HttpPut("{id}/decline")]
+    public async Task<IActionResult> DeclineCashAdvance(int id)
+    {
+        var ca = await _context.CashAdvances.FindAsync(id);
+        if (ca == null) return NotFound();
+
+        ca.Status = "Declined";
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPut("{id}/cancel")]
+    public async Task<IActionResult> CancelCashAdvance(int id)
+    {
+        var ca = await _context.CashAdvances.FindAsync(id);
+        if (ca == null) return NotFound();
+
+        ca.Status = "Canceled";
+        await _context.SaveChangesAsync();
+        return NoContent();
     }
 
     [Authorize(Roles = "Admin")]

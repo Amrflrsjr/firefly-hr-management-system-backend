@@ -231,6 +231,54 @@
     "ReturnTypes": []
   },
   {
+    "ContainingType": "FireflyHR.API.Controllers.CashAdvancesController",
+    "Method": "ApproveCashAdvance",
+    "RelativePath": "api/CashAdvances/{id}/approve",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.CashAdvancesController",
+    "Method": "CancelCashAdvance",
+    "RelativePath": "api/CashAdvances/{id}/cancel",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.CashAdvancesController",
+    "Method": "DeclineCashAdvance",
+    "RelativePath": "api/CashAdvances/{id}/decline",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
     "ContainingType": "FireflyHR.API.Controllers.EmployeesController",
     "Method": "GetEmployees",
     "RelativePath": "api/Employees",
