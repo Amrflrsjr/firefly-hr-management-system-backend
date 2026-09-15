@@ -33,27 +33,41 @@ public class TimeRecordsController : ControllerBase
     [HttpPost("time-in-out")]
     public async Task<ActionResult<TimeRecord>> RecordTime(TimeRecord timeRecord)
     {
-        DateTime nowUtc = DateTime.UtcNow;
-        DateTime todayPst = GetPstTime(nowUtc).Date;
+        DateTime recordUtc = timeRecord.DateCreated != default
+            ? DateTime.SpecifyKind(timeRecord.DateCreated, DateTimeKind.Utc)
+            : DateTime.UtcNow;
 
-        // Fetch logs matching today in PST
-        var todayLogs = await _context.TimeRecords
+        DateTime targetPstDate = GetPstTime(recordUtc).Date;
+
+        var existingLogs = await _context.TimeRecords
             .Where(t => t.EmployeeId == timeRecord.EmployeeId)
             .ToListAsync();
 
-        var existingIn = todayLogs.FirstOrDefault(t => t.Type == "IN" && GetPstTime(t.DateCreated).Date == todayPst);
-        var existingOut = todayLogs.FirstOrDefault(t => t.Type == "OUT" && GetPstTime(t.DateCreated).Date == todayPst);
+        // Check duplicate log type
+        bool duplicateLog = existingLogs.Any(t =>
+            GetPstTime(t.DateCreated).Date == targetPstDate &&
+            t.Type.Equals(timeRecord.Type, StringComparison.OrdinalIgnoreCase));
 
-        if (timeRecord.Type == "IN" && existingIn != null)
+        if (duplicateLog)
         {
-            return BadRequest("You have already clocked in for today.");
-        }
-        else if (timeRecord.Type == "OUT" && existingOut != null)
-        {
-            return BadRequest("You have already clocked out for today.");
+            return BadRequest($"A Time {timeRecord.Type} record already exists for {targetPstDate:MMM dd, yyyy}. Delete it first.");
         }
 
-        timeRecord.DateCreated = nowUtc;
+        // Chronological Order Validation
+        var existingIn = existingLogs.FirstOrDefault(t => t.Type == "IN" && GetPstTime(t.DateCreated).Date == targetPstDate);
+        var existingOut = existingLogs.FirstOrDefault(t => t.Type == "OUT" && GetPstTime(t.DateCreated).Date == targetPstDate);
+
+        if (timeRecord.Type == "OUT" && existingIn != null && recordUtc <= existingIn.DateCreated)
+        {
+            return BadRequest($"Time OUT must be later than Time IN ({GetPstTime(existingIn.DateCreated):hh:mm tt}).");
+        }
+
+        if (timeRecord.Type == "IN" && existingOut != null && recordUtc >= existingOut.DateCreated)
+        {
+            return BadRequest($"Time IN must be earlier than Time OUT ({GetPstTime(existingOut.DateCreated):hh:mm tt}).");
+        }
+
+        timeRecord.DateCreated = recordUtc;
         _context.TimeRecords.Add(timeRecord);
         await _context.SaveChangesAsync();
         return Ok(timeRecord);
