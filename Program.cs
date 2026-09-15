@@ -102,19 +102,13 @@ app.UseAuthorization();
 app.MapControllers();
 
 // Automatically apply all pending EF Core migrations on container startup/deployment
+// Automatically sync database schema on every deployment/startup (No migration files needed)
 using (var scope = app.Services.CreateScope())
 {
-    var services = scope.ServiceProvider;
-    try
-    {
-        var dbContext = services.GetRequiredService<AppDbContext>();
-        dbContext.Database.Migrate();
-    }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while migrating the database.");
-    }
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    dbContext.Database.Migrate(); // Automatically runs pending migrations on startup!
 }
+
+app.Run();
 
 app.Run();

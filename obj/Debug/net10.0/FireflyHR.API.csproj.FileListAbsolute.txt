@@ -144,4 +144,3 @@ C:\Users\Ryzen 5\FireflyHR.API\obj\Debug\net10.0\refint\FireflyHR.API.dll
 C:\Users\Ryzen 5\FireflyHR.API\obj\Debug\net10.0\FireflyHR.API.pdb
 C:\Users\Ryzen 5\FireflyHR.API\obj\Debug\net10.0\FireflyHR.API.genruntimeconfig.cache
 C:\Users\Ryzen 5\FireflyHR.API\obj\Debug\net10.0\ref\FireflyHR.API.dll
-C:\Users\Ryzen 5\FireflyHR.API\obj\Debug\net10.0\staticwebassets.upToDateCheck.txt
