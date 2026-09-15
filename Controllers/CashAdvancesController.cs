@@ -16,7 +16,12 @@ public class CashAdvancesController : ControllerBase
     public CashAdvancesController(AppDbContext context) => _context = context;
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<CashAdvance>>> GetCashAdvances() => await _context.CashAdvances.Include(c => c.Employee).ToListAsync();
+    public async Task<ActionResult<IEnumerable<CashAdvance>>> GetCashAdvances()
+    {
+        return await _context.CashAdvances
+            .Include(c => c.Employee)
+            .ToListAsync();
+    }
 
     [Authorize(Roles = "Admin")]
     [HttpPost]
