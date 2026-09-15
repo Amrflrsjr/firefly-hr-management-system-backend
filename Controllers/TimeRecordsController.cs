@@ -1,10 +1,10 @@
 ﻿using ClosedXML.Excel;
-using DocumentFormat.OpenXml.InkML;
 using FireflyHR.API.Data;
 using FireflyHR.API.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Runtime.InteropServices;
 
 namespace FireflyHR.API.Controllers;
 
@@ -20,37 +20,40 @@ public class TimeRecordsController : ControllerBase
         _context = context;
     }
 
+    // Helper method to safely convert UTC to Philippine Standard Time across Windows and Linux (AWS)
+    private static DateTime GetPstTime(DateTime utcDateTime)
+    {
+        TimeZoneInfo pstZone = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? TimeZoneInfo.FindSystemTimeZoneById("Singapore Standard Time")
+            : TimeZoneInfo.FindSystemTimeZoneById("Asia/Manila");
+
+        return TimeZoneInfo.ConvertTimeFromUtc(utcDateTime, pstZone);
+    }
+
     [HttpPost("time-in-out")]
     public async Task<ActionResult<TimeRecord>> RecordTime(TimeRecord timeRecord)
     {
-        var today = DateTime.UtcNow.Date;
+        DateTime nowUtc = DateTime.UtcNow;
+        DateTime todayPst = GetPstTime(nowUtc).Date;
 
-        if (timeRecord.Type == "IN")
+        // Fetch logs matching today in PST
+        var todayLogs = await _context.TimeRecords
+            .Where(t => t.EmployeeId == timeRecord.EmployeeId)
+            .ToListAsync();
+
+        var existingIn = todayLogs.FirstOrDefault(t => t.Type == "IN" && GetPstTime(t.DateCreated).Date == todayPst);
+        var existingOut = todayLogs.FirstOrDefault(t => t.Type == "OUT" && GetPstTime(t.DateCreated).Date == todayPst);
+
+        if (timeRecord.Type == "IN" && existingIn != null)
         {
-            var existingIn = await _context.TimeRecords
-                .FirstOrDefaultAsync(t => t.EmployeeId == timeRecord.EmployeeId &&
-                                          t.Type == "IN" &&
-                                          t.DateCreated.Date == today);
-
-            if (existingIn != null)
-            {
-                return BadRequest("You have already clocked in for today.");
-            }
+            return BadRequest("You have already clocked in for today.");
         }
-        else if (timeRecord.Type == "OUT")
+        else if (timeRecord.Type == "OUT" && existingOut != null)
         {
-            var existingOut = await _context.TimeRecords
-                .FirstOrDefaultAsync(t => t.EmployeeId == timeRecord.EmployeeId &&
-                                          t.Type == "OUT" &&
-                                          t.DateCreated.Date == today);
-
-            if (existingOut != null)
-            {
-                return BadRequest("You have already clocked out for today.");
-            }
+            return BadRequest("You have already clocked out for today.");
         }
 
-        timeRecord.DateCreated = DateTime.UtcNow;
+        timeRecord.DateCreated = nowUtc;
         _context.TimeRecords.Add(timeRecord);
         await _context.SaveChangesAsync();
         return Ok(timeRecord);
@@ -106,11 +109,14 @@ public class TimeRecordsController : ControllerBase
     [HttpGet("latest-today/{employeeId}")]
     public async Task<IActionResult> GetLatestTimeInToday(int employeeId)
     {
-        var today = DateTime.UtcNow.Date;
-        var latestRecord = await _context.TimeRecords
-            .Where(t => t.EmployeeId == employeeId && t.DateCreated.Date == today)
+        DateTime todayPst = GetPstTime(DateTime.UtcNow).Date;
+
+        var allRecords = await _context.TimeRecords
+            .Where(t => t.EmployeeId == employeeId)
             .OrderByDescending(t => t.DateCreated)
-            .FirstOrDefaultAsync();
+            .ToListAsync();
+
+        var latestRecord = allRecords.FirstOrDefault(t => GetPstTime(t.DateCreated).Date == todayPst);
 
         return Ok(latestRecord);
     }
@@ -122,37 +128,48 @@ public class TimeRecordsController : ControllerBase
         var employee = await _context.Employees.FindAsync(employeeId);
         if (employee == null) return NotFound("Employee not found.");
 
-        DateTime now = DateTime.UtcNow;
-        DateTime startDate = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-        DateTime endDate = now.Date;
+        DateTime nowPst = GetPstTime(DateTime.UtcNow);
+        DateTime startDatePst = new DateTime(nowPst.Year, nowPst.Month, 1).Date;
+        DateTime endDatePst = nowPst.Date;
 
-        // Fetch today's logs for this specific employee
-        var todayLogs = await _context.TimeRecords
-            .Where(t => t.EmployeeId == employeeId && t.DateCreated.Date == now.Date)
-            .OrderBy(t => t.DateCreated)
+        // Fetch logs for this month
+        var monthLogs = await _context.TimeRecords
+            .Where(t => t.EmployeeId == employeeId && t.DateCreated >= startDatePst.ToUniversalTime())
             .ToListAsync();
+
+        // Filter logs matching PST today
+        var todayLogs = monthLogs
+            .Where(t => GetPstTime(t.DateCreated).Date == endDatePst)
+            .OrderBy(t => t.DateCreated)
+            .ToList();
 
         var firstInToday = todayLogs.FirstOrDefault(t => t.Type == "IN");
         var lastOutToday = todayLogs.LastOrDefault(t => t.Type == "OUT");
 
-        string? lastTimeInStr = firstInToday?.DateCreated.ToLocalTime().ToString("hh:mm tt");
-        string? lastTimeOutStr = lastOutToday?.DateCreated.ToLocalTime().ToString("hh:mm tt");
+        // Format times directly in PST (+8)
+        string? lastTimeInStr = firstInToday != null
+            ? GetPstTime(firstInToday.DateCreated).ToString("hh:mm tt")
+            : null;
+
+        string? lastTimeOutStr = lastOutToday != null
+            ? GetPstTime(lastOutToday.DateCreated).ToString("hh:mm tt")
+            : null;
 
         bool hasClockedInToday = firstInToday != null;
         bool hasClockedOutToday = lastOutToday != null;
 
-        // Calculate missed records
-        var recordedDays = await _context.TimeRecords
-            .Where(t => t.EmployeeId == employeeId && t.DateCreated >= startDate && t.DateCreated <= endDate && t.Type == "IN")
-            .Select(t => t.DateCreated.Date)
+        // Calculate missed records based on PST calendar dates
+        var recordedDaysPst = monthLogs
+            .Where(t => t.Type == "IN")
+            .Select(t => GetPstTime(t.DateCreated).Date)
             .Distinct()
-            .ToListAsync();
+            .ToList();
 
         int missedCount = 0;
-        for (DateTime date = startDate; date <= endDate; date = date.AddDays(1))
+        for (DateTime date = startDatePst; date <= endDatePst; date = date.AddDays(1))
         {
             if (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday) continue;
-            if (!recordedDays.Contains(date))
+            if (!recordedDaysPst.Contains(date))
             {
                 missedCount++;
             }
@@ -196,24 +213,23 @@ public class TimeRecordsController : ControllerBase
 
             var headerRange = worksheet.Range(1, 1, 1, 5);
             headerRange.Style.Font.Bold = true;
-            headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#1E293B"); // Slate-800
+            headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#1E293B");
             headerRange.Style.Font.FontColor = XLColor.White;
 
             // Data Rows
             int row = 2;
             foreach (var rec in records)
             {
-                DateTime dt = rec.DateCreated.ToUniversalTime().AddHours(8); // Convert to PST (+8)
+                DateTime dtPst = GetPstTime(rec.DateCreated);
 
                 worksheet.Cell(row, 1).Value = rec.Id;
                 worksheet.Cell(row, 2).Value = $"{employee.LastName}, {employee.FirstName}";
                 worksheet.Cell(row, 3).Value = $"Time {rec.Type}";
-                worksheet.Cell(row, 4).Value = dt.ToString("yyyy-MM-dd");
-                worksheet.Cell(row, 5).Value = dt.ToString("hh:mm:ss tt");
+                worksheet.Cell(row, 4).Value = dtPst.ToString("yyyy-MM-dd");
+                worksheet.Cell(row, 5).Value = dtPst.ToString("hh:mm:ss tt");
                 row++;
             }
 
-            // Adjust column widths to fit contents
             worksheet.Columns().AdjustToContents();
 
             using (var stream = new MemoryStream())
