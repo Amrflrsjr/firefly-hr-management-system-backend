@@ -27,7 +27,7 @@ builder.Services.AddCors(options =>
                    uri.Host.EndsWith(".amazonaws.com") ||
                    uri.Host == "hr.fireflycraftsph.com" ||
                    uri.Host == "staff.fireflycraftsph.com" ||
-                   uri.Host.EndsWith(".fireflycraftsph.com"); // Covers any other subdomains safely
+                   uri.Host.EndsWith(".fireflycraftsph.com");
         })
         .AllowAnyHeader()
         .AllowAnyMethod()
@@ -95,23 +95,26 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseCors("AllowReactApp");
+
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
-// Automatically apply pending EF Core migrations on container startup
-// Force-apply missing column directly on container startup
+// Automatically apply all pending EF Core migrations on container startup/deployment
 using (var scope = app.Services.CreateScope())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    dbContext.Database.ExecuteSqlRaw(@"
-        DO $$ 
-        BEGIN 
-            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='CashAdvances' and column_name='RemainingBalance') THEN
-                ALTER TABLE ""CashAdvances"" ADD COLUMN ""RemainingBalance"" numeric NOT NULL DEFAULT 0.0;
-            END IF;
-        END $$;
-    ");
+    var services = scope.ServiceProvider;
+    try
+    {
+        var dbContext = services.GetRequiredService<AppDbContext>();
+        dbContext.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while migrating the database.");
+    }
 }
 
 app.Run();

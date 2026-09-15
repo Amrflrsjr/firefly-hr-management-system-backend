@@ -1807,13 +1807,16 @@
             "type": "number",
             "format": "double"
           },
-          "monthlyAllowance": {
+          "dailyAllowance": {
             "type": "number",
             "format": "double"
           },
           "bloodType": {
             "type": "string",
             "nullable": true
+          },
+          "hasGovernmentDeductions": {
+            "type": "boolean"
           },
           "sssNumber": {
             "type": "string",
