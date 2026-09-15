@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FireflyHR.API.Controllers;
 
+[Authorize]
 [Route("api/[controller]")]
 [ApiController]
 public class PayrollController : ControllerBase
@@ -187,7 +188,7 @@ public class PayrollController : ControllerBase
         }
 
         // 1. Calculate Earnings & Deductions using Daily Allowance
-        decimal dailyAllowance = employee.DailyAllowance; // Updated from MonthlyAllowance / 22.0m
+        decimal dailyAllowance = employee.DailyAllowance;
         decimal combinedDailyRate = employee.DailySalary + dailyAllowance;
         decimal hourlyRate = employee.DailySalary / 8.0m;
 
@@ -203,7 +204,7 @@ public class PayrollController : ControllerBase
         decimal undertimeDeduction = queryParams.UndertimeHours * hourlyRate;
         decimal absentDeduction = queryParams.AbsentDays * combinedDailyRate;
 
-        // 2. Government Deductions Breakdown (Controlled by toggle)
+        // 2. Dynamic Statutory Government Contribution Calculations
         decimal sssDeduction = 0;
         decimal philHealthDeduction = 0;
         decimal pagIbigDeduction = 0;
@@ -212,10 +213,23 @@ public class PayrollController : ControllerBase
         {
             bool isPerPeriod = employee.DeductionType == "Per Pay Period";
 
-            // Standardized or tier-based breakdown values per period
-            sssDeduction = isPerPeriod ? 400.0m : 800.0m;
-            philHealthDeduction = isPerPeriod ? 150.0m : 300.0m;
-            pagIbigDeduction = isPerPeriod ? 40.0m : 80.0m;
+            // Estimated Monthly Basic Income based on 26 standard working days
+            decimal estimatedMonthlySalary = employee.DailySalary * 26.0m;
+
+            // A. Pag-IBIG: 2% of salary up to Max Salary Ceiling (₱10,000 cap = ₱200/mo, ₱100/cutoff)
+            decimal monthlyPagIbig = Math.Min(estimatedMonthlySalary * 0.02m, 200.0m);
+            pagIbigDeduction = isPerPeriod ? (monthlyPagIbig / 2.0m) : monthlyPagIbig;
+
+            // B. PhilHealth: 5% total rate split between employer & employee (2.5% employee share)
+            // Min floor: ₱10,000 monthly (₱250 EE share / ₱125 per cutoff), Max cap: ₱100,000 monthly
+            decimal boundedPhilHealthBase = Math.Clamp(estimatedMonthlySalary, 10000.0m, 100000.0m);
+            decimal monthlyPhilHealth = boundedPhilHealthBase * 0.025m;
+            philHealthDeduction = isPerPeriod ? (monthlyPhilHealth / 2.0m) : monthlyPhilHealth;
+
+            // C. SSS: Dynamic MSC Bracket Math (~4.5% Employee Share cap at ₱30,000 MSC)
+            // For ₱680/day (₱17,680 monthly), MSC = ₱16,000 -> ₱720.00 semi-monthly deduction
+            decimal monthlySss = CalculateSssEmployeeContribution(estimatedMonthlySalary);
+            sssDeduction = isPerPeriod ? (monthlySss / 2.0m) : monthlySss;
         }
 
         decimal totalGovtContributions = sssDeduction + philHealthDeduction + pagIbigDeduction;
@@ -241,7 +255,7 @@ public class PayrollController : ControllerBase
             AbsentDeduction = Math.Round(absentDeduction, 2),
             CashAdvanceDeduction = Math.Round(queryParams.CashAdvanceDeduction, 2),
 
-            // Explicit Government Breakdown fields
+            // Government Breakdown fields
             SssDeduction = Math.Round(sssDeduction, 2),
             PhilHealthDeduction = Math.Round(philHealthDeduction, 2),
             PagIbigDeduction = Math.Round(pagIbigDeduction, 2),
@@ -300,7 +314,7 @@ public class PayrollController : ControllerBase
             absentDeduction = Math.Round(absentDeduction, 2),
             cashAdvanceDeduction = Math.Round(queryParams.CashAdvanceDeduction, 2),
 
-            // Return individual deduction components to the client UI
+            // Return individual deduction components to client UI
             sssDeduction = Math.Round(sssDeduction, 2),
             philHealthDeduction = Math.Round(philHealthDeduction, 2),
             pagIbigDeduction = Math.Round(pagIbigDeduction, 2),
@@ -310,7 +324,6 @@ public class PayrollController : ControllerBase
             netReceivable = Math.Round(netReceivable, 2)
         });
     }
-
 
     [HttpGet("history/{employeeId}")]
     public async Task<IActionResult> GetPayrollHistory(int employeeId)
@@ -338,7 +351,6 @@ public class PayrollController : ControllerBase
                 p.AbsentDeduction,
                 p.CashAdvanceDeduction,
 
-                // Added Breakdown for History
                 p.SssDeduction,
                 p.PhilHealthDeduction,
                 p.PagIbigDeduction,
@@ -358,7 +370,6 @@ public class PayrollController : ControllerBase
         var paySlip = await _context.PaySlips.FindAsync(id);
         if (paySlip == null) return NotFound("Pay slip record not found.");
 
-        // 1. If a cash advance deduction was part of this payslip, restore balance and status
         if (paySlip.CashAdvanceDeduction > 0)
         {
             var employeeAdvances = await _context.CashAdvances
@@ -372,11 +383,9 @@ public class PayrollController : ControllerBase
             {
                 if (amountToRestore <= 0) break;
 
-                // Calculate how much can be restored to this specific advance
                 decimal maxRestorable = advance.CashAdvanceAmount - advance.RemainingBalance;
                 decimal restoreChunk = Math.Min(amountToRestore, maxRestorable);
 
-                // If maxRestorable was 0 (e.g. legacy records without RemainingBalance initialized), restore fully
                 if (maxRestorable == 0 && advance.RemainingBalance == 0)
                 {
                     restoreChunk = Math.Min(amountToRestore, advance.CashAdvanceAmount);
@@ -385,7 +394,6 @@ public class PayrollController : ControllerBase
                 advance.RemainingBalance += restoreChunk;
                 amountToRestore -= restoreChunk;
 
-                // Re-open status to Active if balance is restored
                 if (advance.RemainingBalance > 0)
                 {
                     advance.Status = "Active";
@@ -393,10 +401,20 @@ public class PayrollController : ControllerBase
             }
         }
 
-        // 2. Delete the pay slip
         _context.PaySlips.Remove(paySlip);
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "Pay slip record deleted successfully and cash advance balance restored." });
+    }
+
+    // Helper: Compute Monthly SSS Employee Contribution based on MSC Brackets
+    private static decimal CalculateSssEmployeeContribution(decimal monthlySalary)
+    {
+        if (monthlySalary <= 4250.0m) return 400.0m;
+        if (monthlySalary >= 29750.0m) return 2700.0m; // 30,000 MSC cap
+
+        // Step by 500 increments on MSC brackets (4.5% Employee share)
+        decimal msc = Math.Floor((monthlySalary - 4250.0m) / 500.0m) * 500.0m + 4500.0m;
+        return msc * 0.045m;
     }
 }
