@@ -25,7 +25,9 @@ builder.Services.AddCors(options =>
                    uri.Host.EndsWith(".devtunnels.ms") ||
                    uri.Host.EndsWith(".cloudfront.net") ||
                    uri.Host.EndsWith(".amazonaws.com") ||
-                   uri.Host == "hr.fireflycraftsph.com";
+                   uri.Host == "hr.fireflycraftsph.com" ||
+                   uri.Host == "staff.fireflycraftsph.com" ||
+                   uri.Host.EndsWith(".fireflycraftsph.com"); // Covers any other subdomains safely
         })
         .AllowAnyHeader()
         .AllowAnyMethod()
