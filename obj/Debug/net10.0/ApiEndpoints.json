@@ -320,6 +320,27 @@
   },
   {
     "ContainingType": "FireflyHR.API.Controllers.EmployeesController",
+    "Method": "PutEmployee",
+    "RelativePath": "api/Employees/{id}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "updatedEmployee",
+        "Type": "FireflyHR.API.Models.Employee",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.EmployeesController",
     "Method": "UpdateEmployeeProfile",
     "RelativePath": "api/Employees/profile/{id}",
     "HttpMethod": "PUT",

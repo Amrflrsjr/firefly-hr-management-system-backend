@@ -53,6 +53,52 @@ public class EmployeesController : ControllerBase
         return employee;
     }
 
+    [Authorize(Roles = "Admin")]
+    [HttpPut("{id}")]
+    public async Task<IActionResult> PutEmployee(int id, Employee updatedEmployee)
+    {
+        if (id != updatedEmployee.Id)
+        {
+            return BadRequest("Employee ID mismatch.");
+        }
+
+        var employee = await _context.Employees.FindAsync(id);
+        if (employee == null)
+        {
+            return NotFound("Employee not found.");
+        }
+
+        // Update admin-controlled fields
+        employee.EmployeeIdNumber = updatedEmployee.EmployeeIdNumber;
+        employee.Username = updatedEmployee.Username;
+        employee.FirstName = updatedEmployee.FirstName;
+        employee.LastName = updatedEmployee.LastName;
+        employee.MiddleName = updatedEmployee.MiddleName;
+        employee.JobTitle = updatedEmployee.JobTitle;
+        employee.EmploymentType = updatedEmployee.EmploymentType;
+        employee.OfficeType = updatedEmployee.OfficeType;
+        employee.DailySalary = updatedEmployee.DailySalary;
+        employee.DailyAllowance = updatedEmployee.DailyAllowance;
+        employee.HasGovernmentDeductions = updatedEmployee.HasGovernmentDeductions;
+        employee.DeductionType = updatedEmployee.DeductionType;
+        employee.IsAdmin = updatedEmployee.IsAdmin;
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!_context.Employees.Any(e => e.Id == id))
+            {
+                return NotFound("Employee not found.");
+            }
+            throw;
+        }
+
+        return Ok(new { message = "Employee updated successfully.", employee });
+    }
+
     [Authorize]
     [HttpPut("profile/{id}")]
     public async Task<IActionResult> UpdateEmployeeProfile(int id, [FromBody] EmployeeUpdateDto updatedInfo)
