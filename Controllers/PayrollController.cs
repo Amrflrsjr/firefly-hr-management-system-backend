@@ -213,21 +213,15 @@ public class PayrollController : ControllerBase
         {
             bool isPerPeriod = employee.DeductionType == "Per Pay Period";
 
-            // Estimated Monthly Basic Income based on 26 standard working days
             decimal estimatedMonthlySalary = employee.DailySalary * 26.0m;
 
-            // A. Pag-IBIG: 2% of salary up to Max Salary Ceiling (₱10,000 cap = ₱200/mo, ₱100/cutoff)
             decimal monthlyPagIbig = Math.Min(estimatedMonthlySalary * 0.02m, 200.0m);
             pagIbigDeduction = isPerPeriod ? (monthlyPagIbig / 2.0m) : monthlyPagIbig;
 
-            // B. PhilHealth: 5% total rate split between employer & employee (2.5% employee share)
-            // Min floor: ₱10,000 monthly (₱250 EE share / ₱125 per cutoff), Max cap: ₱100,000 monthly
             decimal boundedPhilHealthBase = Math.Clamp(estimatedMonthlySalary, 10000.0m, 100000.0m);
             decimal monthlyPhilHealth = boundedPhilHealthBase * 0.025m;
             philHealthDeduction = isPerPeriod ? (monthlyPhilHealth / 2.0m) : monthlyPhilHealth;
 
-            // C. SSS: Dynamic MSC Bracket Math (~4.5% Employee Share cap at ₱30,000 MSC)
-            // For ₱680/day (₱17,680 monthly), MSC = ₱16,000 -> ₱720.00 semi-monthly deduction
             decimal monthlySss = CalculateSssEmployeeContribution(estimatedMonthlySalary);
             sssDeduction = isPerPeriod ? (monthlySss / 2.0m) : monthlySss;
         }
@@ -255,7 +249,6 @@ public class PayrollController : ControllerBase
             AbsentDeduction = Math.Round(absentDeduction, 2),
             CashAdvanceDeduction = Math.Round(queryParams.CashAdvanceDeduction, 2),
 
-            // Government Breakdown fields
             SssDeduction = Math.Round(sssDeduction, 2),
             PhilHealthDeduction = Math.Round(philHealthDeduction, 2),
             PagIbigDeduction = Math.Round(pagIbigDeduction, 2),
@@ -296,6 +289,15 @@ public class PayrollController : ControllerBase
             }
         }
 
+        // --- DISPATCH NOTIFICATION TO EMPLOYEE ---
+        _context.Notifications.Add(new Notification
+        {
+            EmployeeId = employeeId,
+            Title = "New Pay Slip Available",
+            Message = $"Your pay slip for the {periodName} has been generated.",
+            Type = "Payroll" // <--- Mapped strictly to Payroll tab/filter
+        });
+
         await _context.SaveChangesAsync();
 
         return Ok(new
@@ -314,7 +316,6 @@ public class PayrollController : ControllerBase
             absentDeduction = Math.Round(absentDeduction, 2),
             cashAdvanceDeduction = Math.Round(queryParams.CashAdvanceDeduction, 2),
 
-            // Return individual deduction components to client UI
             sssDeduction = Math.Round(sssDeduction, 2),
             philHealthDeduction = Math.Round(philHealthDeduction, 2),
             pagIbigDeduction = Math.Round(pagIbigDeduction, 2),

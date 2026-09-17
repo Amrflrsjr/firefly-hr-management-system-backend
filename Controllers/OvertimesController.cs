@@ -40,7 +40,7 @@ public class OvertimesController : ControllerBase
     {
         var overtimes = await _context.Overtimes
             .Include(o => o.Employee)
-            .Where(o => o.EmployeeId == employeeId)
+            .Where(o => o.EmployeeId == employeeId) // Do not filter out status here!
             .OrderByDescending(o => o.OvertimeDate)
             .Select(o => new
             {
@@ -62,6 +62,28 @@ public class OvertimesController : ControllerBase
         overtime.Status = "In Review";
         _context.Overtimes.Add(overtime);
         await _context.SaveChangesAsync();
+
+        var employee = await _context.Employees.FindAsync(overtime.EmployeeId);
+        string empName = employee != null ? $"{employee.FirstName} {employee.LastName}" : "An employee";
+
+        // Dynamically fetch ALL accounts where IsAdmin is true (No hardcoded IDs)
+        var admins = await _context.Employees
+            .Where(e => e.IsAdmin == true)
+            .ToListAsync();
+
+        // Loop through all valid admins found in the database and create a notification mapped strictly to Overtime type
+        foreach (var admin in admins)
+        {
+            _context.Notifications.Add(new Notification
+            {
+                EmployeeId = admin.Id,
+                Title = "New Overtime Request Pending",
+                Message = $"{empName} filed an overtime request for {overtime.OvertimeDate:MMM dd, yyyy}.",
+                Type = "Overtime" // <--- Mapped strictly to Overtime tab
+            });
+        }
+        await _context.SaveChangesAsync();
+
         return Ok(overtime);
     }
 
@@ -73,6 +95,17 @@ public class OvertimesController : ControllerBase
         if (ot == null) return NotFound();
         ot.Status = status;
         await _context.SaveChangesAsync();
+
+        // Notify employee
+        _context.Notifications.Add(new Notification
+        {
+            EmployeeId = ot.EmployeeId,
+            Title = $"Overtime Request {status}",
+            Message = $"Your overtime request for {ot.OvertimeDate:MMM dd, yyyy} has been {status.ToLower()}.",
+            Type = "Overtime"
+        });
+        await _context.SaveChangesAsync();
+
         return NoContent();
     }
 
@@ -85,6 +118,17 @@ public class OvertimesController : ControllerBase
 
         ot.Status = "Declined";
         await _context.SaveChangesAsync();
+
+        // Notify employee
+        _context.Notifications.Add(new Notification
+        {
+            EmployeeId = ot.EmployeeId,
+            Title = "Overtime Request Declined",
+            Message = $"Your overtime request for {ot.OvertimeDate:MMM dd, yyyy} has been declined.",
+            Type = "Overtime"
+        });
+        await _context.SaveChangesAsync();
+
         return Ok(new { Message = "Overtime request declined." });
     }
 

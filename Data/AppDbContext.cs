@@ -15,4 +15,5 @@ public class AppDbContext : DbContext
     public DbSet<CashAdvance> CashAdvances { get; set; } = null!;
     public DbSet<PaySlip> PaySlips => Set<PaySlip>();
     public DbSet<AttendanceRequest> AttendanceRequests { get; set; } = null!;
+    public DbSet<Notification> Notifications { get; set; }
 }

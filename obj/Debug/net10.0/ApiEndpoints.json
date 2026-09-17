@@ -613,6 +613,100 @@
     "ReturnTypes": []
   },
   {
+    "ContainingType": "FireflyHR.API.Controllers.NotificationsController",
+    "Method": "GetNotifications",
+    "RelativePath": "api/Notifications/{employeeId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "employeeId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "System.Collections.Generic.IEnumerable\u00601[[FireflyHR.API.Models.Notification, FireflyHR.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.NotificationsController",
+    "Method": "MarkAllAsRead",
+    "RelativePath": "api/Notifications/mark-all-read/{employeeId}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "employeeId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.NotificationsController",
+    "Method": "MarkTypeAsRead",
+    "RelativePath": "api/Notifications/mark-type-read/{employeeId}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "employeeId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "type",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.NotificationsController",
+    "Method": "GetUnreadCount",
+    "RelativePath": "api/Notifications/unread-count/{employeeId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "employeeId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "type",
+        "Type": "System.String",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "System.Int32",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
     "ContainingType": "FireflyHR.API.Controllers.OvertimesController",
     "Method": "GetOvertimes",
     "RelativePath": "api/Overtimes",
