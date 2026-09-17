@@ -88,20 +88,23 @@ public class TimeRecordsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<TimeRecord>>> GetTimeRecords([FromQuery] string? date = null)
     {
-        var query = _context.TimeRecords
+        // 1. Fetch all records with employee details from the database first
+        var recordsFromDb = await _context.TimeRecords
             .Include(t => t.Employee)
-            .AsQueryable();
-
-        if (!string.IsNullOrEmpty(date) && DateTime.TryParse(date, out var parsedDate))
-        {
-            query = query.Where(t => GetPstTime(t.DateCreated).Date == parsedDate.Date);
-        }
-
-        var records = await query
             .OrderByDescending(t => t.DateCreated)
             .ToListAsync();
 
-        return Ok(records);
+        // 2. Filter in-memory using GetPstTime if a date is provided
+        if (!string.IsNullOrEmpty(date) && DateTime.TryParse(date, out var parsedDate))
+        {
+            var filteredRecords = recordsFromDb
+                .Where(t => GetPstTime(t.DateCreated).Date == parsedDate.Date)
+                .ToList();
+
+            return Ok(filteredRecords);
+        }
+
+        return Ok(recordsFromDb);
     }
 
     [HttpGet("employee/{employeeId}")]
