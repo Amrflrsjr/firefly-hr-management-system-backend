@@ -90,15 +90,28 @@ public class TimeRecordsController : ControllerBase
         await _context.TimeRecords.Include(t => t.Employee).ToListAsync();
 
     [HttpGet("employee/{employeeId}")]
-    public async Task<ActionResult<IEnumerable<TimeRecord>>> GetEmployeeTimeRecords(int employeeId)
+    public async Task<ActionResult<IEnumerable<TimeRecord>>> GetEmployeeTimeRecords(
+    int employeeId,
+    [FromQuery] string? date = null)
     {
-        var records = await _context.TimeRecords
+        // 1. Fetch raw records from the database first
+        var recordsFromDb = await _context.TimeRecords
             .Include(t => t.Employee)
             .Where(t => t.EmployeeId == employeeId)
             .OrderByDescending(t => t.DateCreated)
             .ToListAsync();
 
-        return Ok(records);
+        // 2. If a date filter is provided, apply the PST conversion safely in-memory
+        if (!string.IsNullOrEmpty(date) && DateTime.TryParse(date, out var parsedDate))
+        {
+            var filteredRecords = recordsFromDb
+                .Where(t => GetPstTime(t.DateCreated).Date == parsedDate.Date)
+                .ToList();
+
+            return Ok(filteredRecords);
+        }
+
+        return Ok(recordsFromDb);
     }
 
     [Authorize(Roles = "Admin")]

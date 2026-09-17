@@ -974,6 +974,11 @@
         "Name": "employeeId",
         "Type": "System.Int32",
         "IsRequired": true
+      },
+      {
+        "Name": "date",
+        "Type": "System.String",
+        "IsRequired": false
       }
     ],
     "ReturnTypes": [
