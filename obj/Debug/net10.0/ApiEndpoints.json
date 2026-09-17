@@ -1040,8 +1040,8 @@
     "Order": 0,
     "Parameters": [
       {
-        "Name": "timeRecord",
-        "Type": "FireflyHR.API.Models.TimeRecord",
+        "Name": "request",
+        "Type": "FireflyHR.API.Controllers.TimeInOutRequest",
         "IsRequired": true
       }
     ],

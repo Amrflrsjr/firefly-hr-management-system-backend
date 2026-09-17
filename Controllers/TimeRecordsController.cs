@@ -8,6 +8,15 @@ using System.Runtime.InteropServices;
 
 namespace FireflyHR.API.Controllers;
 
+public class TimeInOutRequest
+{
+    public int EmployeeId { get; set; }
+    public string Type { get; set; } = "IN"; // IN or OUT
+    public DateTime? DateCreated { get; set; }
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+}
+
 [Authorize]
 [Route("api/[controller]")]
 [ApiController]
@@ -31,43 +40,52 @@ public class TimeRecordsController : ControllerBase
     }
 
     [HttpPost("time-in-out")]
-    public async Task<ActionResult<TimeRecord>> RecordTime(TimeRecord timeRecord)
+    public async Task<ActionResult<TimeRecord>> RecordTime([FromBody] TimeInOutRequest request)
     {
-        DateTime recordUtc = timeRecord.DateCreated != default
-            ? DateTime.SpecifyKind(timeRecord.DateCreated, DateTimeKind.Utc)
+        DateTime recordUtc = request.DateCreated != default && request.DateCreated.HasValue
+            ? DateTime.SpecifyKind(request.DateCreated.Value, DateTimeKind.Utc)
             : DateTime.UtcNow;
 
-        DateTime targetPstDate = GetPstTime(recordUtc).Date;
+        DateTime targetPstDate = DateTime.SpecifyKind(GetPstTime(recordUtc).Date, DateTimeKind.Utc);
 
         var existingLogs = await _context.TimeRecords
-            .Where(t => t.EmployeeId == timeRecord.EmployeeId)
+            .Where(t => t.EmployeeId == request.EmployeeId)
             .ToListAsync();
 
         // Check duplicate log type
         bool duplicateLog = existingLogs.Any(t =>
             GetPstTime(t.DateCreated).Date == targetPstDate &&
-            t.Type.Equals(timeRecord.Type, StringComparison.OrdinalIgnoreCase));
+            t.Type.Equals(request.Type, StringComparison.OrdinalIgnoreCase));
 
         if (duplicateLog)
         {
-            return BadRequest($"A Time {timeRecord.Type} record already exists for {targetPstDate:MMM dd, yyyy}. Delete it first.");
+            return BadRequest($"A Time {request.Type} record already exists for {targetPstDate:MMM dd, yyyy}. Delete it first.");
         }
 
         // Chronological Order Validation
         var existingIn = existingLogs.FirstOrDefault(t => t.Type == "IN" && GetPstTime(t.DateCreated).Date == targetPstDate);
         var existingOut = existingLogs.FirstOrDefault(t => t.Type == "OUT" && GetPstTime(t.DateCreated).Date == targetPstDate);
 
-        if (timeRecord.Type == "OUT" && existingIn != null && recordUtc <= existingIn.DateCreated)
+        if (request.Type == "OUT" && existingIn != null && recordUtc <= existingIn.DateCreated)
         {
             return BadRequest($"Time OUT must be later than Time IN ({GetPstTime(existingIn.DateCreated):hh:mm tt}).");
         }
 
-        if (timeRecord.Type == "IN" && existingOut != null && recordUtc >= existingOut.DateCreated)
+        if (request.Type == "IN" && existingOut != null && recordUtc >= existingOut.DateCreated)
         {
             return BadRequest($"Time IN must be earlier than Time OUT ({GetPstTime(existingOut.DateCreated):hh:mm tt}).");
         }
 
-        timeRecord.DateCreated = recordUtc;
+        var timeRecord = new TimeRecord
+        {
+            EmployeeId = request.EmployeeId,
+            Type = request.Type,
+            DateCreated = recordUtc,
+            Date = targetPstDate,
+            Latitude = request.Latitude,
+            Longitude = request.Longitude
+        };
+
         _context.TimeRecords.Add(timeRecord);
         await _context.SaveChangesAsync();
         return Ok(timeRecord);
@@ -255,6 +273,7 @@ public class TimeRecordsController : ControllerBase
             worksheet.Cell(1, 3).Value = "Log Type";
             worksheet.Cell(1, 4).Value = "Date Logged";
             worksheet.Cell(1, 5).Value = "Timestamp";
+            worksheet.Cell(1, 6).Value = "Coordinates (Lat, Lon)";
 
             var headerRange = worksheet.Range(1, 1, 1, 5);
             headerRange.Style.Font.Bold = true;
@@ -272,6 +291,7 @@ public class TimeRecordsController : ControllerBase
                 worksheet.Cell(row, 3).Value = $"Time {rec.Type}";
                 worksheet.Cell(row, 4).Value = dtPst.ToString("yyyy-MM-dd");
                 worksheet.Cell(row, 5).Value = dtPst.ToString("hh:mm:ss tt");
+                worksheet.Cell(row, 6).Value = $"{rec.Latitude}, {rec.Longitude}";
                 row++;
             }
 

@@ -1436,17 +1436,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TimeRecord"
+                "$ref": "#/components/schemas/TimeInOutRequest"
               }
             },
             "text/json": {
               "schema": {
-                "$ref": "#/components/schemas/TimeRecord"
+                "$ref": "#/components/schemas/TimeInOutRequest"
               }
             },
             "application/*+json": {
               "schema": {
-                "$ref": "#/components/schemas/TimeRecord"
+                "$ref": "#/components/schemas/TimeInOutRequest"
               }
             }
           }
@@ -2084,6 +2084,33 @@
         },
         "additionalProperties": false
       },
+      "TimeInOutRequest": {
+        "type": "object",
+        "properties": {
+          "employeeId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "dateCreated": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "latitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "longitude": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
       "TimeRecord": {
         "type": "object",
         "properties": {
@@ -2109,6 +2136,14 @@
           "dateCreated": {
             "type": "string",
             "format": "date-time"
+          },
+          "latitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "longitude": {
+            "type": "number",
+            "format": "double"
           }
         },
         "additionalProperties": false
