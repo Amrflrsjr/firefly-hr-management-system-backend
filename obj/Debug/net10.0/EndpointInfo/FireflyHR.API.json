@@ -2125,7 +2125,15 @@
       "EmployeeUpdateDto": {
         "type": "object",
         "properties": {
+          "username": {
+            "type": "string",
+            "nullable": true
+          },
           "currentAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "permanentAddress": {
             "type": "string",
             "nullable": true
           },
@@ -2152,6 +2160,34 @@
           "emergencyContactAddress": {
             "type": "string",
             "nullable": true
+          },
+          "sssNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "philHealthNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "pagIbigNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "gender": {
+            "type": "string",
+            "nullable": true
+          },
+          "civilStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "bloodType": {
+            "type": "string",
+            "nullable": true
+          },
+          "age": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -2329,6 +2365,9 @@
           "longitude": {
             "type": "number",
             "format": "double"
+          },
+          "isRequested": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false

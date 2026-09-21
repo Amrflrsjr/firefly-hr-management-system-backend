@@ -68,6 +68,25 @@ public class AttendanceRequestsController : ControllerBase
 
         _context.AttendanceRequests.Add(request);
         await _context.SaveChangesAsync();
+
+        // --- DISPATCH NOTIFICATION TO ALL ADMINS ---
+        string empName = employee != null ? $"{employee.FirstName} {employee.LastName}" : "An employee";
+        var adminAccounts = await _context.Employees
+            .Where(e => e.IsAdmin == true)
+            .ToListAsync();
+
+        foreach (var admin in adminAccounts)
+        {
+            _context.Notifications.Add(new Notification
+            {
+                EmployeeId = admin.Id,
+                Title = "New Attendance Request Pending",
+                Message = $"{empName} filed a correction request for Time {request.Type} on {targetPstDate:MMM dd, yyyy}.",
+                Type = "Attendance" // <--- Notification Type category
+            });
+        }
+        await _context.SaveChangesAsync();
+
         return Ok(request);
     }
 
@@ -94,11 +113,15 @@ public class AttendanceRequestsController : ControllerBase
     [HttpPut("{id}/approve")]
     public async Task<IActionResult> ApproveRequest(int id)
     {
-        var request = await _context.AttendanceRequests.FindAsync(id);
+        var request = await _context.AttendanceRequests
+            .Include(a => a.Employee)
+            .FirstOrDefaultAsync(a => a.Id == id);
+
         if (request == null) return NotFound("Attendance request not found.");
 
+        // Ensure Kind is explicitly Utc
         DateTime targetUtc = DateTime.SpecifyKind(request.TargetDate, DateTimeKind.Utc);
-        DateTime targetPstDate = GetPstTime(targetUtc).Date;
+        DateTime targetPstDate = DateTime.SpecifyKind(GetPstTime(targetUtc).Date, DateTimeKind.Utc);
 
         // Verify no record was created between submission and approval
         var existingLogs = await _context.TimeRecords
@@ -116,12 +139,23 @@ public class AttendanceRequestsController : ControllerBase
 
         request.Status = "Approved";
 
-        // Automatically create the official TimeRecord upon approval
+        // Automatically create the official TimeRecord with explicit UTC kinds and request flag
         _context.TimeRecords.Add(new TimeRecord
         {
             EmployeeId = request.EmployeeId,
             Type = request.Type,
-            DateCreated = targetUtc
+            DateCreated = targetUtc,
+            Date = targetPstDate,
+            IsRequested = true
+        });
+
+        // --- DISPATCH NOTIFICATION TO EMPLOYEE ---
+        _context.Notifications.Add(new Notification
+        {
+            EmployeeId = request.EmployeeId,
+            Title = "Attendance Request Approved",
+            Message = $"Your request for Time {request.Type} on {targetPstDate:MMM dd, yyyy} has been approved.",
+            Type = "Attendance"
         });
 
         await _context.SaveChangesAsync();
@@ -132,10 +166,24 @@ public class AttendanceRequestsController : ControllerBase
     [HttpPut("{id}/reject")]
     public async Task<IActionResult> RejectRequest(int id)
     {
-        var request = await _context.AttendanceRequests.FindAsync(id);
+        var request = await _context.AttendanceRequests
+            .Include(a => a.Employee)
+            .FirstOrDefaultAsync(a => a.Id == id);
+
         if (request == null) return NotFound("Request not found.");
 
         request.Status = "Declined";
+
+        // --- DISPATCH NOTIFICATION TO EMPLOYEE ---
+        DateTime targetPstDate = GetPstTime(DateTime.SpecifyKind(request.TargetDate, DateTimeKind.Utc)).Date;
+        _context.Notifications.Add(new Notification
+        {
+            EmployeeId = request.EmployeeId,
+            Title = "Attendance Request Declined",
+            Message = $"Your request for Time {request.Type} on {targetPstDate:MMM dd, yyyy} has been declined.",
+            Type = "Attendance"
+        });
+
         await _context.SaveChangesAsync();
 
         return Ok(new { Message = "Request has been declined." });

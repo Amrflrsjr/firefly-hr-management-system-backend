@@ -28,6 +28,16 @@ public class EmployeesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Employee>> PostEmployee(Employee employee)
     {
+        // Force DateTime to UTC to prevent Npgsql timestamp timezone mismatch
+        if (employee.DateOfBirth != default)
+            employee.DateOfBirth = DateTime.SpecifyKind(employee.DateOfBirth, DateTimeKind.Utc);
+
+        if (employee.DateHired != default)
+            employee.DateHired = DateTime.SpecifyKind(employee.DateHired, DateTimeKind.Utc);
+
+        if (employee.DeclaredDateHired != default)
+            employee.DeclaredDateHired = DateTime.SpecifyKind(employee.DeclaredDateHired, DateTimeKind.Utc);
+
         _context.Employees.Add(employee);
         await _context.SaveChangesAsync();
         return CreatedAtAction(nameof(GetEmployees), new { id = employee.Id }, employee);
@@ -83,6 +93,17 @@ public class EmployeesController : ControllerBase
         employee.DeductionType = updatedEmployee.DeductionType;
         employee.IsAdmin = updatedEmployee.IsAdmin;
 
+        // Statutory numbers
+        employee.SssNumber = updatedEmployee.SssNumber;
+        employee.PhilHealthNumber = updatedEmployee.PhilHealthNumber;
+        employee.PagIbigNumber = updatedEmployee.PagIbigNumber;
+
+        // Personal details mapping fix
+        employee.Gender = updatedEmployee.Gender;
+        employee.CivilStatus = updatedEmployee.CivilStatus;
+        employee.BloodType = updatedEmployee.BloodType;
+        employee.Age = updatedEmployee.Age;
+
         try
         {
             await _context.SaveChangesAsync();
@@ -106,14 +127,25 @@ public class EmployeesController : ControllerBase
         var employee = await _context.Employees.FindAsync(id);
         if (employee == null) return NotFound("Employee not found.");
 
-        // Update only the fields allowed for employee self-service
+        // Update self-service profile fields including Username
+        employee.Username = updatedInfo.Username;
         employee.CurrentAddress = updatedInfo.CurrentAddress;
+        employee.PermanentAddress = updatedInfo.PermanentAddress;
         employee.ContactNumber = updatedInfo.ContactNumber;
         employee.PersonalEmailAddress = updatedInfo.PersonalEmailAddress;
         employee.EmergencyContactName = updatedInfo.EmergencyContactName;
         employee.EmergencyContactNumber = updatedInfo.EmergencyContactNumber;
         employee.RelationToEmployee = updatedInfo.RelationToEmployee;
         employee.EmergencyContactAddress = updatedInfo.EmergencyContactAddress;
+
+        employee.SssNumber = updatedInfo.SssNumber;
+        employee.PhilHealthNumber = updatedInfo.PhilHealthNumber;
+        employee.PagIbigNumber = updatedInfo.PagIbigNumber;
+
+        employee.Gender = updatedInfo.Gender;
+        employee.CivilStatus = updatedInfo.CivilStatus;
+        employee.BloodType = updatedInfo.BloodType;
+        employee.Age = updatedInfo.Age;
 
         await _context.SaveChangesAsync();
         return Ok(new { Message = "Profile updated successfully.", employee });
