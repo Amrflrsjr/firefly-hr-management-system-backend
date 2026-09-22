@@ -1548,6 +1548,29 @@
         }
       }
     },
+    "/api/Payroll/download-payslip/{id}": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
     "/api/ThirteenthMonth/compute/{employeeId}": {
       "get": {
         "tags": [

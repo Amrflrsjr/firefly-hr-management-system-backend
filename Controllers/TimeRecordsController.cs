@@ -106,13 +106,11 @@ public class TimeRecordsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<TimeRecord>>> GetTimeRecords([FromQuery] string? date = null)
     {
-        // 1. Fetch all records with employee details from the database first
         var recordsFromDb = await _context.TimeRecords
             .Include(t => t.Employee)
             .OrderByDescending(t => t.DateCreated)
             .ToListAsync();
 
-        // 2. Filter in-memory using GetPstTime if a date is provided
         if (!string.IsNullOrEmpty(date) && DateTime.TryParse(date, out var parsedDate))
         {
             var filteredRecords = recordsFromDb
@@ -130,14 +128,12 @@ public class TimeRecordsController : ControllerBase
     int employeeId,
     [FromQuery] string? date = null)
     {
-        // 1. Fetch raw records from the database first
         var recordsFromDb = await _context.TimeRecords
             .Include(t => t.Employee)
             .Where(t => t.EmployeeId == employeeId)
             .OrderByDescending(t => t.DateCreated)
             .ToListAsync();
 
-        // 2. If a date filter is provided, apply the PST conversion safely in-memory
         if (!string.IsNullOrEmpty(date) && DateTime.TryParse(date, out var parsedDate))
         {
             var filteredRecords = recordsFromDb
@@ -209,7 +205,6 @@ public class TimeRecordsController : ControllerBase
         var firstInToday = todayLogs.FirstOrDefault(t => t.Type == "IN");
         var lastOutToday = todayLogs.LastOrDefault(t => t.Type == "OUT");
 
-        // Format times directly in PST (+8)
         string? lastTimeInStr = firstInToday != null
             ? GetPstTime(firstInToday.DateCreated).ToString("hh:mm tt")
             : null;
@@ -221,7 +216,51 @@ public class TimeRecordsController : ControllerBase
         bool hasClockedInToday = firstInToday != null;
         bool hasClockedOutToday = lastOutToday != null;
 
-        // Calculate missed records based on PST calendar dates
+        // Dynamically compute regular hours, overtime hours, and total hours from logs
+        double regularHours = 0;
+        double overtimeHours = 0;
+
+        var groupedByDate = monthLogs
+            .GroupBy(t => GetPstTime(t.DateCreated).Date)
+            .Where(g => g.Key <= endDatePst);
+
+        foreach (var group in groupedByDate)
+        {
+            var dayIns = group.Where(t => t.Type == "IN").OrderBy(t => t.DateCreated).ToList();
+            var dayOuts = group.Where(t => t.Type == "OUT").OrderBy(t => t.DateCreated).ToList();
+
+            if (dayIns.Any() && dayOuts.Any())
+            {
+                var firstIn = dayIns.First().DateCreated;
+                var lastOut = dayOuts.Last().DateCreated;
+
+                if (lastOut > firstIn)
+                {
+                    double hours = (lastOut - firstIn).TotalHours;
+
+                    // Optional: Deduct 1 hour meal break if shift exceeds 6 hours
+                    if (hours > 6.0) hours -= 1.0;
+
+                    if (hours > 8.0)
+                    {
+                        regularHours += 8.0;
+                        overtimeHours += (hours - 8.0);
+                    }
+                    else
+                    {
+                        regularHours += Math.Max(0, hours);
+                    }
+                }
+            }
+        }
+
+        double totalHours = regularHours + overtimeHours;
+
+        // Dynamically compute estimated payout based on DailySalary (assuming 8 hours/day)
+        double hourlyRate = employee.DailySalary > 0 ? (double)(employee.DailySalary / 8.0m) : 0;
+        double estimatedPayout = (regularHours * hourlyRate) + (overtimeHours * hourlyRate * 1.25);
+
+        // Calculate missed records based on PST calendar dates (excluding weekends)
         var recordedDaysPst = monthLogs
             .Where(t => t.Type == "IN")
             .Select(t => GetPstTime(t.DateCreated).Date)
@@ -229,7 +268,7 @@ public class TimeRecordsController : ControllerBase
             .ToList();
 
         int missedCount = 0;
-        for (DateTime date = startDatePst; date <= endDatePst; date = date.AddDays(1))
+        for (DateTime date = startDatePst; date < endDatePst; date = date.AddDays(1))
         {
             if (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday) continue;
             if (!recordedDaysPst.Contains(date))
@@ -240,10 +279,10 @@ public class TimeRecordsController : ControllerBase
 
         return Ok(new
         {
-            regularHours = 33.5,
-            overtimeHours = 4.0,
-            totalHours = 37.5,
-            estimatedPayout = 4550.0,
+            regularHours = Math.Round(regularHours, 1),
+            overtimeHours = Math.Round(overtimeHours, 1),
+            totalHours = Math.Round(totalHours, 1),
+            estimatedPayout = Math.Round(estimatedPayout, 2),
             lastTimeIn = lastTimeInStr,
             lastTimeOut = lastTimeOutStr,
             hasClockedInToday,
@@ -267,7 +306,6 @@ public class TimeRecordsController : ControllerBase
         {
             var worksheet = workbook.Worksheets.Add("Timesheet");
 
-            // Header Row Styling
             worksheet.Cell(1, 1).Value = "Log ID";
             worksheet.Cell(1, 2).Value = "Employee Name";
             worksheet.Cell(1, 3).Value = "Log Type";
@@ -275,12 +313,11 @@ public class TimeRecordsController : ControllerBase
             worksheet.Cell(1, 5).Value = "Timestamp";
             worksheet.Cell(1, 6).Value = "Coordinates (Lat, Lon)";
 
-            var headerRange = worksheet.Range(1, 1, 1, 5);
+            var headerRange = worksheet.Range(1, 1, 1, 6);
             headerRange.Style.Font.Bold = true;
             headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#1E293B");
             headerRange.Style.Font.FontColor = XLColor.White;
 
-            // Data Rows
             int row = 2;
             foreach (var rec in records)
             {

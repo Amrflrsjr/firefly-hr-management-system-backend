@@ -932,6 +932,22 @@
   },
   {
     "ContainingType": "FireflyHR.API.Controllers.PayrollController",
+    "Method": "DownloadPayslipPdf",
+    "RelativePath": "api/Payroll/download-payslip/{id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.PayrollController",
     "Method": "GetPayrollHistory",
     "RelativePath": "api/Payroll/history/{employeeId}",
     "HttpMethod": "GET",

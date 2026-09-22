@@ -3,6 +3,9 @@ using FireflyHR.API.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 
 namespace FireflyHR.API.Controllers;
 
@@ -295,13 +298,14 @@ public class PayrollController : ControllerBase
             EmployeeId = employeeId,
             Title = "New Pay Slip Available",
             Message = $"Your pay slip for the {periodName} has been generated.",
-            Type = "Payroll" // <--- Mapped strictly to Payroll tab/filter
+            Type = "Payroll"
         });
 
         await _context.SaveChangesAsync();
 
         return Ok(new
         {
+            id = paySlip.Id,
             employeeName = $"{employee.LastName}, {employee.FirstName}",
             dailySalary = employee.DailySalary,
             dailyAllowance = dailyAllowance,
@@ -340,7 +344,7 @@ public class PayrollController : ControllerBase
                 p.PayPeriodEnd,
                 EmployeeName = p.Employee != null ? $"{p.Employee.LastName}, {p.Employee.FirstName}" : "",
                 DailySalary = p.DailySalary > 0 ? p.DailySalary : (p.Employee != null ? p.Employee.DailySalary : 0),
-                DailyAllowance = p.DailyAllowance > 0 ? p.DailyAllowance : (p.Employee != null ? p.Employee.DailyAllowance : 0),
+                DailyAllowance = p.DailyAllowance > 0 ? p.DailyAllowance : (p.Employee != null ? p.Employee.DailyAllowance : 0), // <--- ADD THIS
                 p.BasicPay,
                 p.OvertimePay,
                 p.RegularHolidayPay,
@@ -351,12 +355,10 @@ public class PayrollController : ControllerBase
                 p.UndertimeDeduction,
                 p.AbsentDeduction,
                 p.CashAdvanceDeduction,
-
                 p.SssDeduction,
                 p.PhilHealthDeduction,
                 p.PagIbigDeduction,
                 p.GovernmentContributions,
-
                 p.TotalDeductions,
                 p.NetReceivable
             })
@@ -412,10 +414,200 @@ public class PayrollController : ControllerBase
     private static decimal CalculateSssEmployeeContribution(decimal monthlySalary)
     {
         if (monthlySalary <= 4250.0m) return 400.0m;
-        if (monthlySalary >= 29750.0m) return 2700.0m; // 30,000 MSC cap
+        if (monthlySalary >= 29750.0m) return 2700.0m;
 
-        // Step by 500 increments on MSC brackets (4.5% Employee share)
         decimal msc = Math.Floor((monthlySalary - 4250.0m) / 500.0m) * 500.0m + 4500.0m;
         return msc * 0.045m;
+    }
+
+    [HttpGet("download-payslip/{id}")]
+    public async Task<IActionResult> DownloadPayslipPdf(int id)
+    {
+        var payrollRecord = await _context.PaySlips
+            .Include(p => p.Employee)
+            .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (payrollRecord == null) return NotFound("Payslip record not found.");
+
+        string employeeName = payrollRecord.Employee != null
+            ? $"{payrollRecord.Employee.LastName}, {payrollRecord.Employee.FirstName}"
+            : "Employee";
+
+        var document = Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(25);
+                page.PageColor(Colors.White);
+
+                // Header Section
+                page.Header().Column(headerCol =>
+                {
+                    headerCol.Item().Row(row =>
+                    {
+                        row.RelativeItem().Column(col =>
+                        {
+                            col.Item().Text("Firefly Crafts PH").Bold().FontSize(14).FontColor(Colors.Grey.Darken4);
+                            col.Item().Text("NXF Sticker Shop • Official Employee Pay Slip").FontSize(9).FontColor(Colors.Grey.Medium);
+                            col.Item().Text("Unit #26, 2nd Flr, J&G Bldg, H. Abellana St., Canduman, Mandaue City").FontSize(8).FontColor(Colors.Grey.Medium);
+                        });
+
+                        row.ConstantItem(180).Column(col =>
+                        {
+                            col.Item().AlignRight().Text("PAYSLIP").Bold().FontSize(20).FontColor(Colors.Grey.Darken3);
+                            col.Item().AlignRight().Text($"Period: {payrollRecord.PayPeriod}").Bold().FontSize(9).FontColor(Colors.Grey.Darken2);
+                            col.Item().AlignRight().Text($"Date: {Convert.ToDateTime(payrollRecord.PayPeriodEnd):MMM dd, yyyy}").FontSize(9).FontColor(Colors.Grey.Medium);
+                        });
+                    });
+
+                    headerCol.Item().PaddingTop(12).LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
+                });
+
+                // Content Body
+                page.Content().PaddingVertical(15).Column(col =>
+                {
+                    // Employee Info Box (Rounded Card Style)
+                    col.Item()
+                        .Border(1)
+                        .BorderColor(Colors.Grey.Lighten2)
+                        .Background(Colors.Grey.Lighten4)
+                        .CornerRadius(6)
+                        .Padding(12)
+                        .Row(row =>
+                        {
+                            row.RelativeItem().Column(c =>
+                            {
+                                c.Item().Text("EMPLOYEE DETAILS").Bold().FontSize(8).FontColor(Colors.Grey.Medium);
+                                c.Item().PaddingTop(2);
+                                c.Item().Text(employeeName).Bold().FontSize(11).FontColor(Colors.Grey.Darken4);
+                                c.Item().Text($"Position / Department: {payrollRecord.Employee?.OfficeType ?? "General"} Staff").FontSize(9).FontColor(Colors.Grey.Darken2);
+                            });
+
+                            row.ConstantItem(150).AlignRight().Column(c =>
+                            {
+                                c.Item().Text("COMPENSATION RATE").Bold().FontSize(8).FontColor(Colors.Grey.Medium);
+                                c.Item().PaddingTop(2);
+                                c.Item().Text($"₱{(payrollRecord.DailySalary + payrollRecord.DailyAllowance):N2} / day").Bold().FontSize(10).FontColor(Colors.Grey.Darken4);
+                                c.Item().Text($"(Base: ₱{payrollRecord.DailySalary:N2} + Allowance: ₱{payrollRecord.DailyAllowance:N2})").FontSize(7).FontColor(Colors.Grey.Medium);
+                            });
+                        });
+
+                    col.Item().PaddingTop(15);
+
+                    // Side-by-Side Earnings and Deductions Tables with Rounded Corners
+                    col.Item().Row(row =>
+                    {
+                        // Earnings Table
+                        row.RelativeItem()
+                            .Border(1)
+                            .BorderColor(Colors.Grey.Lighten2)
+                            .CornerRadius(6)
+                            .Column(eCol =>
+                            {
+                                eCol.Item().Background(Colors.Grey.Darken3).Padding(8).Text("EARNINGS & ADDITIONS").Bold().FontColor(Colors.White).FontSize(9);
+                                eCol.Item().Padding(8).Column(itemCol =>
+                                {
+                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Basic Pay").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.BasicPay:N2}").FontSize(9); });
+                                    itemCol.Item().PaddingTop(4);
+                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Overtime Pay").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.OvertimePay:N2}").FontSize(9); });
+                                    itemCol.Item().PaddingTop(4);
+                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Regular Holiday").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.RegularHolidayPay:N2}").FontSize(9); });
+                                    itemCol.Item().PaddingTop(4);
+                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Special Holiday").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.SpecialHolidayPay:N2}").FontSize(9); });
+                                    itemCol.Item().PaddingTop(4);
+                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Approved Leave").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.LeavePay:N2}").FontSize(9); });
+
+                                    itemCol.Item().PaddingTop(10).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten2);
+                                    itemCol.Item().PaddingTop(6);
+                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Gross Earnings").Bold().FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.GrossEarnings:N2}").Bold().FontSize(9); });
+                                });
+                            });
+
+                        row.ConstantItem(12); // Spacing between columns
+
+                        // Deductions Table
+                        row.RelativeItem()
+                            .Border(1)
+                            .BorderColor(Colors.Grey.Lighten2)
+                            .CornerRadius(6)
+                            .Column(dCol =>
+                            {
+                                dCol.Item().Background(Colors.Grey.Darken3).Padding(8).Text("DEDUCTIONS & CONTRIBUTIONS").Bold().FontColor(Colors.White).FontSize(9);
+                                dCol.Item().Padding(8).Column(itemCol =>
+                                {
+                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Late / Undertime").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{(payrollRecord.LateDeduction + payrollRecord.UndertimeDeduction):N2}").FontSize(9); });
+                                    itemCol.Item().PaddingTop(4);
+                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Absent Deductions").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.AbsentDeduction:N2}").FontSize(9); });
+                                    itemCol.Item().PaddingTop(4);
+                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Cash Advance").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.CashAdvanceDeduction:N2}").FontSize(9); });
+                                    itemCol.Item().PaddingTop(4);
+                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Govt (SSS/PhilHealth/Pag-IBIG)").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.GovernmentContributions:N2}").FontSize(9); });
+
+                                    itemCol.Item().PaddingTop(10).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten2);
+                                    itemCol.Item().PaddingTop(6);
+                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Total Deductions").Bold().FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.TotalDeductions:N2}").Bold().FontSize(9).FontColor(Colors.Red.Medium); });
+                                });
+                            });
+                    });
+
+                    col.Item().PaddingTop(20);
+
+                    // Net Receivable Professional Rounded Banner
+                    col.Item()
+                        .Border(1)
+                        .BorderColor(Colors.Amber.Medium)
+                        .Background(Colors.Amber.Lighten5)
+                        .CornerRadius(6)
+                        .Padding(14)
+                        .Row(row =>
+                        {
+                            row.RelativeItem().Column(c =>
+                            {
+                                c.Item().Text("NET RECEIVABLE PAY").Bold().FontSize(10).FontColor(Colors.Amber.Darken4);
+                                c.Item().Text("Total take-home pay for the current pay period").FontSize(8).FontColor(Colors.Grey.Darken1);
+                            });
+
+                            row.ConstantItem(180).AlignRight().Column(c =>
+                            {
+                                c.Item().AlignRight().Text($"₱{payrollRecord.NetReceivable:N2}").Bold().FontSize(16).FontColor(Colors.Black);
+                            });
+                        });
+
+                    // Signatures Section
+                    col.Item().PaddingTop(40);
+                    col.Item().Row(sig =>
+                    {
+                        sig.RelativeItem().Column(s =>
+                        {
+                            s.Item().Text("________________________________________").FontSize(9).FontColor(Colors.Grey.Medium);
+                            s.Item().PaddingTop(4);
+                            s.Item().Text("Prepared By (HR / Payroll)").FontSize(9).Bold().FontColor(Colors.Grey.Darken2);
+                        });
+
+                        sig.RelativeItem().Column(s =>
+                        {
+                            s.Item().Text("________________________________________").FontSize(9).FontColor(Colors.Grey.Medium);
+                            s.Item().PaddingTop(4);
+                            s.Item().Text("Received By (Employee Signature)").FontSize(9).Bold().FontColor(Colors.Grey.Darken2);
+                        });
+                    });
+                });
+
+                // Footer
+                page.Footer().AlignCenter().Text(text =>
+                {
+                    text.Span("Page ").FontSize(8).FontColor(Colors.Grey.Medium);
+                    text.CurrentPageNumber().FontSize(8).FontColor(Colors.Grey.Medium);
+                    text.Span(" of ").FontSize(8).FontColor(Colors.Grey.Medium);
+                    text.TotalPages().FontSize(8).FontColor(Colors.Grey.Medium);
+                });
+            });
+        });
+
+        byte[] pdfBytes = document.GeneratePdf();
+        string filename = $"Payslip_{employeeName.Replace(" ", "_").Replace(",", "")}.pdf";
+
+        return File(pdfBytes, "application/pdf", filename);
     }
 }
