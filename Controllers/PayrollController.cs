@@ -429,9 +429,21 @@ public class PayrollController : ControllerBase
 
         if (payrollRecord == null) return NotFound("Payslip record not found.");
 
+        // Employee name formatting
         string employeeName = payrollRecord.Employee != null
-            ? $"{payrollRecord.Employee.LastName}, {payrollRecord.Employee.FirstName}"
+            ? $"{payrollRecord.Employee.LastName}_{payrollRecord.Employee.FirstName}"
             : "Employee";
+
+        string cleanEmployeeName = employeeName.Replace(" ", "_").Replace(",", "").Replace(".", "");
+
+        // Payslip period type code
+        string payslipType = payrollRecord.PayPeriod != null && payrollRecord.PayPeriod.Contains("15th") ? "15th" : "14-28";
+
+        // Current creation date formatted as YYYY-MM-DD (e.g., 2026-09-23)
+        string currentDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
+
+        // Filename pattern: employeeName_payslipType_Date
+        string filename = $"{cleanEmployeeName}_{payslipType}_{currentDate}.pdf";
 
         var document = Document.Create(container =>
         {
@@ -480,7 +492,7 @@ public class PayrollController : ControllerBase
                             {
                                 c.Item().Text("EMPLOYEE DETAILS").Bold().FontSize(8).FontColor(Colors.Grey.Medium);
                                 c.Item().PaddingTop(2);
-                                c.Item().Text(employeeName).Bold().FontSize(11).FontColor(Colors.Grey.Darken4);
+                                c.Item().Text(employeeName.Replace("_", " ")).Bold().FontSize(11).FontColor(Colors.Grey.Darken4);
                                 c.Item().Text($"Position / Department: {payrollRecord.Employee?.OfficeType ?? "General"} Staff").FontSize(9).FontColor(Colors.Grey.Darken2);
                             });
 
@@ -606,8 +618,6 @@ public class PayrollController : ControllerBase
         });
 
         byte[] pdfBytes = document.GeneratePdf();
-        string filename = $"Payslip_{employeeName.Replace(" ", "_").Replace(",", "")}.pdf";
-
         return File(pdfBytes, "application/pdf", filename);
     }
 }
