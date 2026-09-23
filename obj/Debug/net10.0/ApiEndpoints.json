@@ -279,6 +279,56 @@
     "ReturnTypes": []
   },
   {
+    "ContainingType": "FireflyHR.API.Controllers.DashboardController",
+    "Method": "GetAttendanceTrends",
+    "RelativePath": "api/Dashboard/attendance-trends",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.DashboardController",
+    "Method": "GetLeaveDistribution",
+    "RelativePath": "api/Dashboard/leave-distribution",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.DashboardController",
+    "Method": "GetPayrollSummary",
+    "RelativePath": "api/Dashboard/payroll-summary",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.DashboardController",
+    "Method": "GetPayrollTrends",
+    "RelativePath": "api/Dashboard/payroll-trends",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.DashboardController",
+    "Method": "GetDashboardStats",
+    "RelativePath": "api/Dashboard/stats",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
     "ContainingType": "FireflyHR.API.Controllers.EmployeesController",
     "Method": "GetEmployees",
     "RelativePath": "api/Employees",
@@ -286,17 +336,7 @@
     "IsController": true,
     "Order": 0,
     "Parameters": [],
-    "ReturnTypes": [
-      {
-        "Type": "System.Collections.Generic.IEnumerable\u00601[[FireflyHR.API.Models.Employee, FireflyHR.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
+    "ReturnTypes": []
   },
   {
     "ContainingType": "FireflyHR.API.Controllers.EmployeesController",
@@ -354,17 +394,7 @@
         "IsRequired": true
       }
     ],
-    "ReturnTypes": [
-      {
-        "Type": "FireflyHR.API.Models.Employee",
-        "MediaTypes": [
-          "text/plain",
-          "application/json",
-          "text/json"
-        ],
-        "StatusCode": 200
-      }
-    ]
+    "ReturnTypes": []
   },
   {
     "ContainingType": "FireflyHR.API.Controllers.EmployeesController",
@@ -382,6 +412,22 @@
       {
         "Name": "updatedEmployee",
         "Type": "FireflyHR.API.Models.Employee",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FireflyHR.API.Controllers.EmployeesController",
+    "Method": "ResetLeaveBalance",
+    "RelativePath": "api/Employees/{id}/reset-leave-balance",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
         "IsRequired": true
       }
     ],

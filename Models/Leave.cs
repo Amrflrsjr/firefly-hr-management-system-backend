@@ -8,4 +8,5 @@ public class Leave
     public DateTime LeaveDate { get; set; }
     public decimal LeaveHours { get; set; }
     public string Status { get; set; } = "In Review"; // In Review or Approved
+    public string LeaveType { get; set; } = "Vacation";
 }

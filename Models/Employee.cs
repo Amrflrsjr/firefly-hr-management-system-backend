@@ -30,6 +30,8 @@ public class Employee
     public string OfficeType { get; set; } = "Admin"; // Admin or Production
     public decimal DailySalary { get; set; }
     public decimal DailyAllowance { get; set; }
+    public decimal MaxLeaveHours { get; set; } = 40.0m;
+    public DateTime? LastLeaveResetDate { get; set; }
     public string BloodType { get; set; } = string.Empty;
     public bool HasGovernmentDeductions { get; set; } = false;
     public string SssNumber { get; set; } = string.Empty;

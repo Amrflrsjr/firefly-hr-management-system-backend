@@ -59,15 +59,46 @@ public class LeavesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Leave>> PostLeave(Leave leave)
     {
+        // 1. Fetch employee to check MaxLeaveHours
+        var employee = await _context.Employees.FindAsync(leave.EmployeeId);
+        if (employee == null) return NotFound("Employee not found.");
+
+        // 2. Calculate total used hours (Approved or In Review leaves)
+        var existingLeaves = await _context.Leaves
+            .Where(l => l.EmployeeId == leave.EmployeeId && (l.Status == "Approved" || l.Status == "In Review"))
+            .ToListAsync();
+
+        decimal totalUsedHours = existingLeaves.Sum(l => l.LeaveHours);
+        decimal remainingBalance = employee.MaxLeaveHours - totalUsedHours;
+
+        // 3. Auto-decline if requested hours exceed remaining balance
+        if (leave.LeaveHours > remainingBalance)
+        {
+            leave.Status = "Declined";
+            _context.Leaves.Add(leave);
+
+            // Notify employee of auto-decline due to insufficient balance
+            _context.Notifications.Add(new Notification
+            {
+                EmployeeId = leave.EmployeeId,
+                Title = "Leave Request Auto-Declined",
+                Message = $"Your leave request for {leave.LeaveHours} hours on {leave.LeaveDate:MMM dd, yyyy} was automatically declined. Remaining leave balance: {remainingBalance} hours.",
+                Type = "Leave"
+            });
+
+            await _context.SaveChangesAsync();
+            return BadRequest(new { Message = $"Insufficient leave balance. You only have {remainingBalance} hours remaining out of your {employee.MaxLeaveHours} hour limit." });
+        }
+
+        // 4. Normal flow if balance is sufficient
         leave.Status = "In Review";
         _context.Leaves.Add(leave);
         await _context.SaveChangesAsync();
 
-        // Fetch employee details for the notification message
-        var employee = await _context.Employees.FindAsync(leave.EmployeeId);
-        string empName = employee != null ? $"{employee.FirstName} {employee.LastName}" : "An employee";
+        // Fetch employee details for notification
+        string empName = $"{employee.FirstName} {employee.LastName}";
 
-        // Dynamically find ALL admin accounts from the database (No hardcoding)
+        // Dynamically find ALL admin accounts from the database
         var adminAccounts = await _context.Employees
             .Where(e => e.IsAdmin == true)
             .ToListAsync();
@@ -80,7 +111,7 @@ public class LeavesController : ControllerBase
                 EmployeeId = admin.Id,
                 Title = "New Leave Request Pending",
                 Message = $"{empName} filed a leave request for {leave.LeaveDate:MMM dd, yyyy}.",
-                Type = "Leave" // <--- MUST be strictly "Leave"
+                Type = "Leave"
             });
         }
         await _context.SaveChangesAsync();

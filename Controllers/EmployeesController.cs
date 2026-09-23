@@ -19,9 +19,75 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Employee>>> GetEmployees()
+    public async Task<IActionResult> GetEmployees()
     {
-        return await _context.Employees.ToListAsync();
+        var employees = await _context.Employees
+            .Where(e => !e.IsAdmin)
+            .OrderBy(e => e.LastName)
+            .ThenBy(e => e.FirstName)
+            .ToListAsync();
+
+        var leaves = await _context.Leaves
+            .Where(l => l.Status == "Approved" || l.Status == "In Review")
+            .ToListAsync();
+
+        var result = employees.Select(e =>
+        {
+            // Only count leaves that were created AFTER the employee's last reset date (if any)
+            var relevantLeaves = leaves.Where(l => l.EmployeeId == e.Id);
+            if (e.LastLeaveResetDate.HasValue)
+            {
+                relevantLeaves = relevantLeaves.Where(l => l.LeaveDate >= e.LastLeaveResetDate.Value);
+            }
+
+            decimal usedHours = relevantLeaves.Sum(l => l.LeaveHours);
+            decimal remainingHours = Math.Max(0, e.MaxLeaveHours - usedHours);
+
+            return new
+            {
+                e.Id,
+                e.EmployeeIdNumber,
+                e.Username,
+                e.FirstName,
+                e.LastName,
+                e.MiddleName,
+                e.Password,
+                e.MustChangePassword,
+                e.IsAdmin,
+                e.DateOfBirth,
+                e.Age,
+                e.Gender,
+                e.CivilStatus,
+                e.CurrentAddress,
+                e.PermanentAddress,
+                e.ContactNumber,
+                e.PersonalEmailAddress,
+                e.EmergencyContactName,
+                e.EmergencyContactNumber,
+                e.RelationToEmployee,
+                e.EmergencyContactAddress,
+                e.JobTitle,
+                e.EmploymentType,
+                e.DateHired,
+                e.DeclaredDateHired,
+                e.OfficeType,
+                e.DailySalary,
+                e.DailyAllowance,
+                e.BloodType,
+                e.HasGovernmentDeductions,
+                e.SssNumber,
+                e.PhilHealthNumber,
+                e.PagIbigNumber,
+                e.DeductionType,
+                e.Photo,
+                e.EmploymentStatus,
+                e.MaxLeaveHours,
+                UsedLeaveHours = usedHours,
+                RemainingLeaveHours = remainingHours
+            };
+        });
+
+        return Ok(result);
     }
 
     [Authorize(Roles = "Admin")]
@@ -37,6 +103,12 @@ public class EmployeesController : ControllerBase
 
         if (employee.DeclaredDateHired != default)
             employee.DeclaredDateHired = DateTime.SpecifyKind(employee.DeclaredDateHired, DateTimeKind.Utc);
+
+        // Enforce 40 default limit if not provided
+        if (employee.MaxLeaveHours <= 0)
+        {
+            employee.MaxLeaveHours = 40.0m;
+        }
 
         _context.Employees.Add(employee);
         await _context.SaveChangesAsync();
@@ -54,13 +126,93 @@ public class EmployeesController : ControllerBase
         return NoContent();
     }
 
-    [Authorize]
-    [HttpGet("{id}")]
-    public async Task<ActionResult<Employee>> GetEmployee(int id)
+    [Authorize(Roles = "Admin")]
+    [HttpPost("{id}/reset-leave-balance")]
+    public async Task<IActionResult> ResetLeaveBalance(int id)
     {
         var employee = await _context.Employees.FindAsync(id);
         if (employee == null) return NotFound("Employee not found.");
-        return employee;
+
+        // Set the reset timestamp to now so prior leaves are ignored in balance calculations
+        employee.LastLeaveResetDate = DateTime.UtcNow;
+
+        _context.Notifications.Add(new Notification
+        {
+            EmployeeId = id,
+            Title = "Leave Balance Reset",
+            Message = $"Your leave balance has been reset by an administrator. You now have your full {employee.MaxLeaveHours} hours available.",
+            Type = "Leave"
+        });
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = $"Leave balance for {employee.FirstName} {employee.LastName} has been successfully reset." });
+    }
+
+    [Authorize]
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetEmployee(int id)
+    {
+        var employee = await _context.Employees.FindAsync(id);
+        if (employee == null) return NotFound("Employee not found.");
+
+        var leaves = await _context.Leaves
+            .Where(l => l.EmployeeId == id && (l.Status == "Approved" || l.Status == "In Review"))
+            .ToListAsync();
+
+        var relevantLeaves = leaves.AsEnumerable();
+        if (employee.LastLeaveResetDate.HasValue)
+        {
+            relevantLeaves = relevantLeaves.Where(l => l.LeaveDate >= employee.LastLeaveResetDate.Value);
+        }
+
+        decimal usedHours = relevantLeaves.Sum(l => l.LeaveHours);
+        decimal remainingHours = Math.Max(0, employee.MaxLeaveHours - usedHours);
+
+        var response = new
+        {
+            employee.Id,
+            employee.EmployeeIdNumber,
+            employee.Username,
+            employee.FirstName,
+            employee.LastName,
+            employee.MiddleName,
+            employee.Password,
+            employee.MustChangePassword,
+            employee.IsAdmin,
+            employee.DateOfBirth,
+            employee.Age,
+            employee.Gender,
+            employee.CivilStatus,
+            employee.CurrentAddress,
+            employee.PermanentAddress,
+            employee.ContactNumber,
+            employee.PersonalEmailAddress,
+            employee.EmergencyContactName,
+            employee.EmergencyContactNumber,
+            employee.RelationToEmployee,
+            employee.EmergencyContactAddress,
+            employee.JobTitle,
+            employee.EmploymentType,
+            employee.DateHired,
+            employee.DeclaredDateHired,
+            employee.OfficeType,
+            employee.DailySalary,
+            employee.DailyAllowance,
+            employee.BloodType,
+            employee.HasGovernmentDeductions,
+            employee.SssNumber,
+            employee.PhilHealthNumber,
+            employee.PagIbigNumber,
+            employee.DeductionType,
+            employee.Photo,
+            employee.EmploymentStatus,
+            employee.MaxLeaveHours,
+            UsedLeaveHours = usedHours,
+            RemainingLeaveHours = remainingHours
+        };
+
+        return Ok(response);
     }
 
     [Authorize(Roles = "Admin")]
@@ -92,6 +244,7 @@ public class EmployeesController : ControllerBase
         employee.HasGovernmentDeductions = updatedEmployee.HasGovernmentDeductions;
         employee.DeductionType = updatedEmployee.DeductionType;
         employee.IsAdmin = updatedEmployee.IsAdmin;
+        employee.MaxLeaveHours = updatedEmployee.MaxLeaveHours;
 
         // Statutory numbers
         employee.SssNumber = updatedEmployee.SssNumber;
