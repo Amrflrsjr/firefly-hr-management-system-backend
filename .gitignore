@@ -10,6 +10,8 @@ b/
 /[Bb]in/
 /[Oo]bj/
 .vs/
+[Bb]in/
+[Oo]bj/
 
 # Visual Studio files
 .nx/
