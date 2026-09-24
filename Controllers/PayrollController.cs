@@ -451,31 +451,33 @@ public class PayrollController : ControllerBase
         return Ok(generatedSlips);
     }
 
-    [HttpGet("download-payslip/{id}")]
-    public async Task<IActionResult> DownloadPayslipPdf(int id, [FromQuery] int? employeeId = null, [FromQuery] string? payPeriod = null)
+    [HttpGet("download-payslip/{idOrPeriod}")]
+    public async Task<IActionResult> DownloadPayslipPdf(string idOrPeriod, [FromQuery] int? employeeId = null, [FromQuery] string? payPeriod = null)
     {
         PaySlip? payrollRecord = null;
 
-        // If ID looks like a dummy/placeholder or employee ID, try to find by employee & period
-        if (id == 999 && employeeId.HasValue && !string.IsNullOrEmpty(payPeriod))
+        // Check if the parameter is a numeric database ID
+        if (int.TryParse(idOrPeriod, out int recordId) && recordId != 999)
         {
-            string periodName = payPeriod.Contains("15th") ? "15th Pay Period" : "End of Month Pay Period";
+            payrollRecord = await _context.PaySlips
+                .Include(p => p.Employee)
+                .FirstOrDefaultAsync(p => p.Id == recordId);
+        }
+
+        // Fallback: If it's a placeholder (999) or a string period name, lookup by employee & period
+        if (payrollRecord == null && employeeId.HasValue)
+        {
+            string targetPeriod = payPeriod ?? (idOrPeriod.Contains("15th") ? "15th Pay Period" : "End of Month Pay Period");
             DateTime now = DateTime.UtcNow;
 
             payrollRecord = await _context.PaySlips
                 .Include(p => p.Employee)
                 .Where(p => p.EmployeeId == employeeId.Value &&
-                            p.PayPeriod == periodName &&
+                            p.PayPeriod.ToLower().Contains(targetPeriod.ToLower()) &&
                             p.PayPeriodEnd.Month == now.Month &&
                             p.PayPeriodEnd.Year == now.Year)
                 .OrderByDescending(p => p.DateCreated)
                 .FirstOrDefaultAsync();
-        }
-        else
-        {
-            payrollRecord = await _context.PaySlips
-                .Include(p => p.Employee)
-                .FirstOrDefaultAsync(p => p.Id == id);
         }
 
         if (payrollRecord == null) return NotFound("Payslip record not found.");
@@ -655,6 +657,6 @@ public class PayrollController : ControllerBase
 
         if (payrollRecord == null) return NotFound("Payslip record not found for this period.");
 
-        return await DownloadPayslipPdf(payrollRecord.Id);
+        return await DownloadPayslipPdf(payrollRecord.Id.ToString());
     }
 }
