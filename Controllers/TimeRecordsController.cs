@@ -104,46 +104,69 @@ public class TimeRecordsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<TimeRecord>>> GetTimeRecords([FromQuery] string? date = null)
+    public async Task<IActionResult> GetTimeRecords([FromQuery] string? date = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 15)
     {
-        var recordsFromDb = await _context.TimeRecords
+        var query = _context.TimeRecords
             .Include(t => t.Employee)
             .OrderByDescending(t => t.DateCreated)
-            .ToListAsync();
+            .AsQueryable();
 
         if (!string.IsNullOrEmpty(date) && DateTime.TryParse(date, out var parsedDate))
         {
-            var filteredRecords = recordsFromDb
-                .Where(t => GetPstTime(t.DateCreated).Date == parsedDate.Date)
-                .ToList();
+            // Note: For date filtering with pagination, filter before paging
+            var allRecords = await query.ToListAsync();
+            var filtered = allRecords.Where(t => GetPstTime(t.DateCreated).Date == parsedDate.Date).ToList();
 
-            return Ok(filteredRecords);
+            int totalCount = filtered.Count;
+            int totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            var pagedItems = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            return Ok(new { items = pagedItems, totalCount, totalPages, currentPage = page });
         }
 
-        return Ok(recordsFromDb);
+        int totalCountDb = await query.CountAsync();
+        int totalPagesDb = (int)Math.Ceiling(totalCountDb / (double)pageSize);
+        var pagedRecords = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return Ok(new { items = pagedRecords, totalCount = totalCountDb, totalPages = totalPagesDb, currentPage = page });
     }
 
     [HttpGet("employee/{employeeId}")]
-    public async Task<ActionResult<IEnumerable<TimeRecord>>> GetEmployeeTimeRecords(
-    int employeeId,
-    [FromQuery] string? date = null)
+    public async Task<IActionResult> GetEmployeeTimeRecords(
+        int employeeId,
+        [FromQuery] string? date = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 15)
     {
-        var recordsFromDb = await _context.TimeRecords
+        var query = _context.TimeRecords
             .Include(t => t.Employee)
             .Where(t => t.EmployeeId == employeeId)
             .OrderByDescending(t => t.DateCreated)
-            .ToListAsync();
+            .AsQueryable();
 
         if (!string.IsNullOrEmpty(date) && DateTime.TryParse(date, out var parsedDate))
         {
-            var filteredRecords = recordsFromDb
-                .Where(t => GetPstTime(t.DateCreated).Date == parsedDate.Date)
-                .ToList();
+            var allRecords = await query.ToListAsync();
+            var filtered = allRecords.Where(t => GetPstTime(t.DateCreated).Date == parsedDate.Date).ToList();
 
-            return Ok(filteredRecords);
+            int totalCount = filtered.Count;
+            int totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+            var pagedItems = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            return Ok(new { items = pagedItems, totalCount, totalPages, currentPage = page });
         }
 
-        return Ok(recordsFromDb);
+        int totalCountDb = await query.CountAsync();
+        int totalPagesDb = (int)Math.Ceiling(totalCountDb / (double)pageSize);
+        var pagedRecords = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return Ok(new { items = pagedRecords, totalCount = totalCountDb, totalPages = totalPagesDb, currentPage = page });
     }
 
     [Authorize(Roles = "Admin")]

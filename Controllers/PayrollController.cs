@@ -331,12 +331,19 @@ public class PayrollController : ControllerBase
     }
 
     [HttpGet("history/{employeeId}")]
-    public async Task<IActionResult> GetPayrollHistory(int employeeId)
+    public async Task<IActionResult> GetPayrollHistory(int employeeId, [FromQuery] int page = 1, [FromQuery] int pageSize = 5)
     {
-        var history = await _context.PaySlips
+        var query = _context.PaySlips
             .Include(p => p.Employee)
             .Where(p => p.EmployeeId == employeeId)
-            .OrderByDescending(p => p.DateCreated)
+            .OrderByDescending(p => p.DateCreated);
+
+        int totalCount = await query.CountAsync();
+        int totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        var history = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(p => new
             {
                 p.Id,
@@ -344,7 +351,7 @@ public class PayrollController : ControllerBase
                 p.PayPeriodEnd,
                 EmployeeName = p.Employee != null ? $"{p.Employee.LastName}, {p.Employee.FirstName}" : "",
                 DailySalary = p.DailySalary > 0 ? p.DailySalary : (p.Employee != null ? p.Employee.DailySalary : 0),
-                DailyAllowance = p.DailyAllowance > 0 ? p.DailyAllowance : (p.Employee != null ? p.Employee.DailyAllowance : 0), // <--- ADD THIS
+                DailyAllowance = p.DailyAllowance > 0 ? p.DailyAllowance : (p.Employee != null ? p.Employee.DailyAllowance : 0),
                 p.BasicPay,
                 p.OvertimePay,
                 p.RegularHolidayPay,
@@ -364,7 +371,13 @@ public class PayrollController : ControllerBase
             })
             .ToListAsync();
 
-        return Ok(history);
+        return Ok(new
+        {
+            items = history,
+            totalCount,
+            totalPages,
+            currentPage = page
+        });
     }
 
     [HttpDelete("{id}")]
@@ -418,6 +431,24 @@ public class PayrollController : ControllerBase
 
         decimal msc = Math.Floor((monthlySalary - 4250.0m) / 500.0m) * 500.0m + 4500.0m;
         return msc * 0.045m;
+    }
+
+    [HttpGet("status-summary")]
+    public async Task<IActionResult> GetPayrollStatusSummary([FromQuery] string payPeriod = "15th")
+    {
+        string periodName = payPeriod == "15th" ? "15th Pay Period" : "End of Month Pay Period";
+        DateTime now = DateTime.UtcNow;
+
+        // Find all employee IDs with generated payslips for this period and month
+        var generatedSlips = await _context.PaySlips
+            .Where(p => p.PayPeriod == periodName &&
+                        p.PayPeriodEnd.Month == now.Month &&
+                        p.PayPeriodEnd.Year == now.Year)
+            .Select(p => p.EmployeeId)
+            .Distinct()
+            .ToListAsync();
+
+        return Ok(generatedSlips);
     }
 
     [HttpGet("download-payslip/{id}")]
