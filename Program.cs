@@ -160,7 +160,3 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
-
-app.Run();
-
-app.Run();

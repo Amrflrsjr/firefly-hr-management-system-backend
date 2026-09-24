@@ -452,11 +452,31 @@ public class PayrollController : ControllerBase
     }
 
     [HttpGet("download-payslip/{id}")]
-    public async Task<IActionResult> DownloadPayslipPdf(int id)
+    public async Task<IActionResult> DownloadPayslipPdf(int id, [FromQuery] int? employeeId = null, [FromQuery] string? payPeriod = null)
     {
-        var payrollRecord = await _context.PaySlips
-            .Include(p => p.Employee)
-            .FirstOrDefaultAsync(p => p.Id == id);
+        PaySlip? payrollRecord = null;
+
+        // If ID looks like a dummy/placeholder or employee ID, try to find by employee & period
+        if (id == 999 && employeeId.HasValue && !string.IsNullOrEmpty(payPeriod))
+        {
+            string periodName = payPeriod.Contains("15th") ? "15th Pay Period" : "End of Month Pay Period";
+            DateTime now = DateTime.UtcNow;
+
+            payrollRecord = await _context.PaySlips
+                .Include(p => p.Employee)
+                .Where(p => p.EmployeeId == employeeId.Value &&
+                            p.PayPeriod == periodName &&
+                            p.PayPeriodEnd.Month == now.Month &&
+                            p.PayPeriodEnd.Year == now.Year)
+                .OrderByDescending(p => p.DateCreated)
+                .FirstOrDefaultAsync();
+        }
+        else
+        {
+            payrollRecord = await _context.PaySlips
+                .Include(p => p.Employee)
+                .FirstOrDefaultAsync(p => p.Id == id);
+        }
 
         if (payrollRecord == null) return NotFound("Payslip record not found.");
 
@@ -466,14 +486,8 @@ public class PayrollController : ControllerBase
             : "Employee";
 
         string cleanEmployeeName = employeeName.Replace(" ", "_").Replace(",", "").Replace(".", "");
-
-        // Payslip period type code
         string payslipType = payrollRecord.PayPeriod != null && payrollRecord.PayPeriod.Contains("15th") ? "15th" : "14-28";
-
-        // Current creation date formatted as YYYY-MM-DD (e.g., 2026-09-23)
         string currentDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
-
-        // Filename pattern: employeeName_payslipType_Date
         string filename = $"{cleanEmployeeName}_{payslipType}_{currentDate}.pdf";
 
         var document = Document.Create(container =>
@@ -484,7 +498,6 @@ public class PayrollController : ControllerBase
                 page.Margin(25);
                 page.PageColor(Colors.White);
 
-                // Header Section
                 page.Header().Column(headerCol =>
                 {
                     headerCol.Item().Row(row =>
@@ -503,14 +516,11 @@ public class PayrollController : ControllerBase
                             col.Item().AlignRight().Text($"Date: {Convert.ToDateTime(payrollRecord.PayPeriodEnd):MMM dd, yyyy}").FontSize(9).FontColor(Colors.Grey.Medium);
                         });
                     });
-
                     headerCol.Item().PaddingTop(12).LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
                 });
 
-                // Content Body
                 page.Content().PaddingVertical(15).Column(col =>
                 {
-                    // Employee Info Box (Rounded Card Style)
                     col.Item()
                         .Border(1)
                         .BorderColor(Colors.Grey.Lighten2)
@@ -538,10 +548,8 @@ public class PayrollController : ControllerBase
 
                     col.Item().PaddingTop(15);
 
-                    // Side-by-Side Earnings and Deductions Tables with Rounded Corners
                     col.Item().Row(row =>
                     {
-                        // Earnings Table
                         row.RelativeItem()
                             .Border(1)
                             .BorderColor(Colors.Grey.Lighten2)
@@ -567,9 +575,8 @@ public class PayrollController : ControllerBase
                                 });
                             });
 
-                        row.ConstantItem(12); // Spacing between columns
+                        row.ConstantItem(12);
 
-                        // Deductions Table
                         row.RelativeItem()
                             .Border(1)
                             .BorderColor(Colors.Grey.Lighten2)
@@ -596,7 +603,6 @@ public class PayrollController : ControllerBase
 
                     col.Item().PaddingTop(20);
 
-                    // Net Receivable Professional Rounded Banner
                     col.Item()
                         .Border(1)
                         .BorderColor(Colors.Amber.Medium)
@@ -616,28 +622,8 @@ public class PayrollController : ControllerBase
                                 c.Item().AlignRight().Text($"₱{payrollRecord.NetReceivable:N2}").Bold().FontSize(16).FontColor(Colors.Black);
                             });
                         });
-
-                    // Signatures Section
-                    col.Item().PaddingTop(40);
-                    col.Item().Row(sig =>
-                    {
-                        sig.RelativeItem().Column(s =>
-                        {
-                            s.Item().Text("________________________________________").FontSize(9).FontColor(Colors.Grey.Medium);
-                            s.Item().PaddingTop(4);
-                            s.Item().Text("Prepared By (HR / Payroll)").FontSize(9).Bold().FontColor(Colors.Grey.Darken2);
-                        });
-
-                        sig.RelativeItem().Column(s =>
-                        {
-                            s.Item().Text("________________________________________").FontSize(9).FontColor(Colors.Grey.Medium);
-                            s.Item().PaddingTop(4);
-                            s.Item().Text("Received By (Employee Signature)").FontSize(9).Bold().FontColor(Colors.Grey.Darken2);
-                        });
-                    });
                 });
 
-                // Footer
                 page.Footer().AlignCenter().Text(text =>
                 {
                     text.Span("Page ").FontSize(8).FontColor(Colors.Grey.Medium);
@@ -650,5 +636,25 @@ public class PayrollController : ControllerBase
 
         byte[] pdfBytes = document.GeneratePdf();
         return File(pdfBytes, "application/pdf", filename);
+    }
+
+    [HttpGet("download-payslip/employee/{employeeId}")]
+    public async Task<IActionResult> DownloadPayslipByEmployeePdf(int employeeId, [FromQuery] string payPeriod = "15th")
+    {
+        string periodName = payPeriod.Contains("15th") ? "15th Pay Period" : "End of Month Pay Period";
+        DateTime now = DateTime.UtcNow;
+
+        var payrollRecord = await _context.PaySlips
+            .Include(p => p.Employee)
+            .Where(p => p.EmployeeId == employeeId &&
+                        p.PayPeriod == periodName &&
+                        p.PayPeriodEnd.Month == now.Month &&
+                        p.PayPeriodEnd.Year == now.Year)
+            .OrderByDescending(p => p.DateCreated)
+            .FirstOrDefaultAsync();
+
+        if (payrollRecord == null) return NotFound("Payslip record not found for this period.");
+
+        return await DownloadPayslipPdf(payrollRecord.Id);
     }
 }

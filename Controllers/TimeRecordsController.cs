@@ -113,7 +113,6 @@ public class TimeRecordsController : ControllerBase
 
         if (!string.IsNullOrEmpty(date) && DateTime.TryParse(date, out var parsedDate))
         {
-            // Note: For date filtering with pagination, filter before paging
             var allRecords = await query.ToListAsync();
             var filtered = allRecords.Where(t => GetPstTime(t.DateCreated).Date == parsedDate.Date).ToList();
 
@@ -136,10 +135,10 @@ public class TimeRecordsController : ControllerBase
 
     [HttpGet("employee/{employeeId}")]
     public async Task<IActionResult> GetEmployeeTimeRecords(
-        int employeeId,
-        [FromQuery] string? date = null,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 15)
+    int employeeId,
+    [FromQuery] string? date = null,
+    [FromQuery] int page = 1,
+    [FromQuery] int pageSize = 15)
     {
         var query = _context.TimeRecords
             .Include(t => t.Employee)
