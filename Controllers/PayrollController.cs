@@ -83,7 +83,7 @@ public class PayrollController : ControllerBase
 
                 if (holiday != null)
                 {
-                    // Cap holiday hours to a maximum of 8 hours per day
+                    // Cap daily holiday hours to a maximum of 8 hours per day
                     decimal cappedHolidayHours = Math.Min(hoursWorkedOnDay, 8.0m);
 
                     if (holiday.HolidayType == "Regular Holiday")
@@ -139,7 +139,7 @@ public class PayrollController : ControllerBase
             }
         }
 
-        // 2. Approved Overtime Hours
+        // 2. Approved Overtime Hours (Strictly from filed & approved overtime records)
         var overtimes = await _context.Overtimes
             .Where(o => o.EmployeeId == employeeId && o.Status == "Approved" && o.OvertimeDate >= startDate && o.OvertimeDate <= endDate)
             .ToListAsync();
@@ -161,7 +161,7 @@ public class PayrollController : ControllerBase
         return Ok(new
         {
             daysWorked,
-            overtimeHours,
+            overtimeHours = Math.Round(overtimeHours, 2),
             approvedLeaveHours,
             cashAdvanceDeduction,
             regularHolidayHours = Math.Round(regularHolidayHoursTotal, 2),
