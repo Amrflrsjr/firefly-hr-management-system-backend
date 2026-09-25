@@ -83,13 +83,16 @@ public class PayrollController : ControllerBase
 
                 if (holiday != null)
                 {
+                    // Cap holiday hours to a maximum of 8 hours per day
+                    decimal cappedHolidayHours = Math.Min(hoursWorkedOnDay, 8.0m);
+
                     if (holiday.HolidayType == "Regular Holiday")
                     {
-                        regularHolidayHoursTotal += hoursWorkedOnDay;
+                        regularHolidayHoursTotal += cappedHolidayHours;
                     }
                     else if (holiday.HolidayType == "Special Non-Working Holiday")
                     {
-                        specialNonWorkingHoursTotal += hoursWorkedOnDay;
+                        specialNonWorkingHoursTotal += cappedHolidayHours;
                     }
                 }
             }
@@ -190,24 +193,35 @@ public class PayrollController : ControllerBase
             return BadRequest($"A {periodName} pay slip already exists for this month. Delete it from History first to recalculate.");
         }
 
-        // 1. Calculate Earnings & Deductions using Daily Allowance
+        // 1. Spreadsheet-Aligned Rates & Earnings Formulas (D5 equivalent is Actual Daily Rate)
         decimal dailyAllowance = employee.DailyAllowance;
-        decimal combinedDailyRate = employee.DailySalary + dailyAllowance;
-        decimal hourlyRate = employee.DailySalary / 8.0m;
+        decimal actualDailyRate = employee.DailySalary + dailyAllowance; // D5 in spreadsheet
+        decimal hourlyRate = actualDailyRate / 8.0m; // D5 / 8
 
-        decimal basicPay = combinedDailyRate * queryParams.DaysWorked;
-        decimal overtimePay = queryParams.OvertimeHours * hourlyRate * 1.25m;
-        decimal regularHolidayPay = queryParams.RegularHolidayHours * hourlyRate * 2.0m;
-        decimal specialHolidayPay = queryParams.SpecialNonWorkingHours * hourlyRate * 1.3m;
-        decimal leavePay = queryParams.ApprovedLeaveHours * hourlyRate;
+        // Basic Pay: (Total Hours / 8) * D5  [where Total Hours = DaysWorked * 8]
+        decimal totalBasicHours = queryParams.DaysWorked * 8.0m;
+        decimal basicPay = (totalBasicHours / 8.0m) * actualDailyRate;
+
+        // Special Holiday: (Hours / 8) * D5 * 1.3 (matches =(C7/8)*D5*1.3)
+        decimal specialHolidayPay = (queryParams.SpecialNonWorkingHours / 8.0m) * actualDailyRate * 1.3m;
+
+        // Regular Holiday: (Hours / 8) * D5 (matches =(C8/8)*D5)
+        decimal regularHolidayPay = (queryParams.RegularHolidayHours / 8.0m) * actualDailyRate * 1.0m;
+
+        // Overtime Pay: (Hours / 8) * D5 * 1.3 (matches =(C10/8)*(D5*1.3))
+        decimal overtimePay = (queryParams.OvertimeHours / 8.0m) * actualDailyRate * 1.3m;
+
+        // Leave Pay: (Hours / 8) * D5
+        decimal leavePay = (queryParams.ApprovedLeaveHours / 8.0m) * actualDailyRate;
 
         decimal grossEarnings = basicPay + overtimePay + regularHolidayPay + specialHolidayPay + leavePay;
 
-        decimal lateDeduction = queryParams.LateHours * hourlyRate;
-        decimal undertimeDeduction = queryParams.UndertimeHours * hourlyRate;
-        decimal absentDeduction = queryParams.AbsentDays * combinedDailyRate;
+        // Deductions
+        decimal lateDeduction = (queryParams.LateHours / 8.0m) * actualDailyRate;
+        decimal undertimeDeduction = (queryParams.UndertimeHours / 8.0m) * actualDailyRate;
+        decimal absentDeduction = queryParams.AbsentDays * actualDailyRate;
 
-        // 2. Dynamic Statutory Government Contribution Calculations
+        // 2. Statutory Government Contributions (Fixed per spreadsheet values)
         decimal sssDeduction = 0;
         decimal philHealthDeduction = 0;
         decimal pagIbigDeduction = 0;
@@ -216,17 +230,25 @@ public class PayrollController : ControllerBase
         {
             bool isPerPeriod = employee.DeductionType == "Per Pay Period";
 
-            decimal estimatedMonthlySalary = employee.DailySalary * 26.0m;
+            // Spreadsheet full monthly baselines
+            decimal monthlySss = 720.0m;
+            decimal monthlyPhilHealth = 360.0m;
+            decimal monthlyPagIbig = 100.0m;
 
-            decimal monthlyPagIbig = Math.Min(estimatedMonthlySalary * 0.02m, 200.0m);
-            pagIbigDeduction = isPerPeriod ? (monthlyPagIbig / 2.0m) : monthlyPagIbig;
-
-            decimal boundedPhilHealthBase = Math.Clamp(estimatedMonthlySalary, 10000.0m, 100000.0m);
-            decimal monthlyPhilHealth = boundedPhilHealthBase * 0.025m;
-            philHealthDeduction = isPerPeriod ? (monthlyPhilHealth / 2.0m) : monthlyPhilHealth;
-
-            decimal monthlySss = CalculateSssEmployeeContribution(estimatedMonthlySalary);
-            sssDeduction = isPerPeriod ? (monthlySss / 2.0m) : monthlySss;
+            if (isPerPeriod)
+            {
+                // Split across two cutoffs if set to Per Pay Period
+                sssDeduction = monthlySss / 2.0m;
+                philHealthDeduction = monthlyPhilHealth / 2.0m;
+                pagIbigDeduction = monthlyPagIbig / 2.0m;
+            }
+            else
+            {
+                // Full monthly deduction if set to Monthly
+                sssDeduction = monthlySss;
+                philHealthDeduction = monthlyPhilHealth;
+                pagIbigDeduction = monthlyPagIbig;
+            }
         }
 
         decimal totalGovtContributions = sssDeduction + philHealthDeduction + pagIbigDeduction;
