@@ -127,9 +127,10 @@ public class PayrollController : ControllerBase
                         effectiveTimeIn = expectedIn;
                     }
 
-                    // Rule: If they timed in within grace period (<= 9:05 AM) and timed out at 6:00 PM or later, consider it full 8 hours.
+                    // Rule: If they timed out at 6:00 PM or later, consider it a full 8 hours (0 undertime)
+                    // Late hours are already tracked separately above, preventing double-penalization.
                     DateTime standardShiftEnd = timeInLocal.Date.AddHours(18);
-                    if (timeInLocal <= graceThreshold && timeOutLocal >= standardShiftEnd)
+                    if (timeOutLocal >= standardShiftEnd)
                     {
                         netHoursWorked = 8.0m;
                     }
