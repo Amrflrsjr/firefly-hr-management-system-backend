@@ -210,8 +210,8 @@ public class PayrollController : ControllerBase
         // Regular Holiday: (Hours / 8) * D5 (matches =(C8/8)*D5)
         decimal regularHolidayPay = (queryParams.RegularHolidayHours / 8.0m) * actualDailyRate * 1.0m;
 
-        // Overtime Pay: (Hours / 8) * D5 * 1.3 (matches =(C10/8)*(D5*1.3))
-        decimal overtimePay = (queryParams.OvertimeHours / 8.0m) * actualDailyRate * 1.3m;
+        // Overtime Pay: (Hours / 8) * D5 * 1.25 (updated multiplier)
+        decimal overtimePay = (queryParams.OvertimeHours / 8.0m) * actualDailyRate * 1.25m;
 
         // Leave Pay: (Hours / 8) * D5
         decimal leavePay = (queryParams.ApprovedLeaveHours / 8.0m) * actualDailyRate;
