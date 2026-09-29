@@ -102,6 +102,10 @@ app.UseCors("AllowReactApp");
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Dedicated lightweight health check endpoint for AWS ALB (bypasses auth automatically)
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy", timestamp = DateTime.UtcNow }))
+   .AllowAnonymous();
+
 app.MapControllers();
 
 // Automatically sync all required database columns on every startup / deployment
