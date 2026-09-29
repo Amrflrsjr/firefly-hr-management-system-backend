@@ -110,6 +110,7 @@ public class PayrollController : ControllerBase
                 DateTime timeOutLocal = timeOutUtc.Value.ToUniversalTime().AddHours(8);
 
                 DateTime effectiveTimeIn = timeInLocal;
+                decimal netHoursWorked = 0;
 
                 if (employee.OfficeType == "Admin")
                 {
@@ -123,8 +124,20 @@ public class PayrollController : ControllerBase
                     }
                     else if (timeInLocal > expectedIn && timeInLocal <= graceThreshold)
                     {
-                        // Grace period applied: treat effective time-in as sharp 9:00 AM for net work calculation
                         effectiveTimeIn = expectedIn;
+                    }
+
+                    // Rule: If they timed in within grace period (<= 9:05 AM) and timed out at 6:00 PM or later, consider it full 8 hours.
+                    DateTime standardShiftEnd = timeInLocal.Date.AddHours(18);
+                    if (timeInLocal <= graceThreshold && timeOutLocal >= standardShiftEnd)
+                    {
+                        netHoursWorked = 8.0m;
+                    }
+                    else
+                    {
+                        decimal totalElapsedHours = (decimal)(timeOutLocal - effectiveTimeIn).TotalHours;
+                        decimal lunchBreakDeduction = totalElapsedHours >= 5.0m ? 1.0m : 0.0m;
+                        netHoursWorked = totalElapsedHours - lunchBreakDeduction;
                     }
                 }
                 else if (employee.OfficeType == "Production")
@@ -135,12 +148,11 @@ public class PayrollController : ControllerBase
                     {
                         lateHoursTotal += (decimal)(timeInLocal - maxAllowedIn).TotalHours;
                     }
-                }
 
-                // Strict 8-Hour Net Work Enforcement (With 1-hour lunch break deduction, using effective time-in)
-                decimal totalElapsedHours = (decimal)(timeOutLocal - effectiveTimeIn).TotalHours;
-                decimal lunchBreakDeduction = totalElapsedHours >= 5.0m ? 1.0m : 0.0m;
-                decimal netHoursWorked = totalElapsedHours - lunchBreakDeduction;
+                    decimal totalElapsedHours = (decimal)(timeOutLocal - effectiveTimeIn).TotalHours;
+                    decimal lunchBreakDeduction = totalElapsedHours >= 5.0m ? 1.0m : 0.0m;
+                    netHoursWorked = totalElapsedHours - lunchBreakDeduction;
+                }
 
                 if (netHoursWorked < 8.0m)
                 {
@@ -231,7 +243,6 @@ public class PayrollController : ControllerBase
         decimal undertimeDeduction = (queryParams.UndertimeHours / 8.0m) * actualDailyRate;
         decimal absentDeduction = queryParams.AbsentDays * actualDailyRate;
 
-        // 2. Statutory Government Contributions (Fixed per spreadsheet values)
         // 2. Statutory Government Contributions (Fixed per spreadsheet values)
         decimal sssDeduction = 0;
         decimal philHealthDeduction = 0;
@@ -632,9 +643,9 @@ public class PayrollController : ControllerBase
 
         var deductions = new (string, string)[]
         {
-        ("Late / Undertime",               Money(payrollRecord.LateDeduction + payrollRecord.UndertimeDeduction)),
-        ("Absent Deductions",              Money(payrollRecord.AbsentDeduction)),
-        ("Cash Advance",                   Money(payrollRecord.CashAdvanceDeduction)),
+        ("Late / Undertime",                 Money(payrollRecord.LateDeduction + payrollRecord.UndertimeDeduction)),
+        ("Absent Deductions",                Money(payrollRecord.AbsentDeduction)),
+        ("Cash Advance",                     Money(payrollRecord.CashAdvanceDeduction)),
         ("Govt (SSS / PhilHealth / Pag-IBIG)", Money(payrollRecord.GovernmentContributions)),
         };
 
