@@ -39,12 +39,14 @@ public class PayrollController : ControllerBase
             int lastDayPrevMonth = DateTime.DaysInMonth(prevMonth.Year, prevMonth.Month);
             int startDay = Math.Min(30, lastDayPrevMonth);
             startDate = new DateTime(prevMonth.Year, prevMonth.Month, startDay, 0, 0, 0, DateTimeKind.Utc);
-            endDate = new DateTime(now.Year, now.Month, 13, 23, 59, 59, DateTimeKind.Utc);
+            // Strict cutoff at 13th 23:59:59 PHT (which is 15:59:59 UTC)
+            endDate = new DateTime(now.Year, now.Month, 13, 15, 59, 59, DateTimeKind.Utc);
         }
         else
         {
             startDate = new DateTime(now.Year, now.Month, 14, 0, 0, 0, DateTimeKind.Utc);
-            endDate = new DateTime(now.Year, now.Month, 28, 23, 59, 59, DateTimeKind.Utc);
+            // Strict cutoff at 28th 23:59:59 PHT (which is 15:59:59 UTC) to prevent trailing records from leaking in
+            endDate = new DateTime(now.Year, now.Month, 28, 15, 59, 59, DateTimeKind.Utc);
         }
 
         // Load Holidays within cutoff period
