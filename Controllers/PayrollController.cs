@@ -72,17 +72,19 @@ public class PayrollController : ControllerBase
         foreach (var group in groupedLogs)
         {
             var dayDate = group.Key;
+            var holiday = periodHolidays.FirstOrDefault(h => h.HolidayDate.Date == dayDate);
 
-            // Robustly match IN and OUT types (supporting "IN"/"OUT" or "Time IN"/"Time OUT")
-            var timeInRecord = group.FirstOrDefault(t => t.Type != null &&
+            // Get all IN and OUT logs for this day, ordered chronologically
+            var dayLogs = group.OrderBy(t => t.DateCreated).ToList();
+
+            var firstIn = dayLogs.FirstOrDefault(t => t.Type != null &&
                 (t.Type.Equals("IN", StringComparison.OrdinalIgnoreCase) || t.Type.Equals("Time IN", StringComparison.OrdinalIgnoreCase)));
-            var timeOutRecord = group.FirstOrDefault(t => t.Type != null &&
+
+            var lastOut = dayLogs.LastOrDefault(t => t.Type != null &&
                 (t.Type.Equals("OUT", StringComparison.OrdinalIgnoreCase) || t.Type.Equals("Time OUT", StringComparison.OrdinalIgnoreCase)));
 
-            var timeInUtc = timeInRecord?.DateCreated;
-            var timeOutUtc = timeOutRecord?.DateCreated;
-
-            var holiday = periodHolidays.FirstOrDefault(h => h.HolidayDate.Date == dayDate);
+            var timeInUtc = firstIn?.DateCreated;
+            var timeOutUtc = lastOut?.DateCreated;
 
             if (timeInUtc.HasValue && timeOutUtc.HasValue && holiday != null)
             {
@@ -99,7 +101,7 @@ public class PayrollController : ControllerBase
                 }
             }
 
-            // Strict 9 AM - 6 PM check for regular non-holiday days
+            // Strict Day-by-Day Evaluation for Regular Non-Holiday Days
             if (holiday == null && timeInUtc.HasValue && timeOutUtc.HasValue)
             {
                 // Convert to Philippine Standard Time (+8) for shift comparisons
@@ -116,27 +118,25 @@ public class PayrollController : ControllerBase
                     {
                         lateHoursTotal += (decimal)(timeInLocal - expectedIn).TotalHours;
                     }
-
-                    DateTime expectedOut = timeOutLocal.Date.AddHours(18); // 6:00 PM
-                    if (timeOutLocal < expectedOut)
-                    {
-                        undertimeHoursTotal += (decimal)(expectedOut - timeOutLocal).TotalHours;
-                    }
                 }
                 else if (employee.OfficeType == "Production")
                 {
-                    // Production: 8:00 AM - 10:00 AM Flex-in, 5:00 PM (17:00) expected Out
+                    // Production: 8:00 AM - 10:00 AM Flex-in
                     DateTime maxAllowedIn = timeInLocal.Date.AddHours(10);
                     if (timeInLocal > maxAllowedIn)
                     {
                         lateHoursTotal += (decimal)(timeInLocal - maxAllowedIn).TotalHours;
                     }
+                }
 
-                    DateTime expectedOut = timeOutLocal.Date.AddHours(17); // 5:00 PM
-                    if (timeOutLocal < expectedOut)
-                    {
-                        undertimeHoursTotal += (decimal)(expectedOut - timeOutLocal).TotalHours;
-                    }
+                // Strict 8-Hour Net Work Enforcement (With 1-hour lunch break deduction)
+                decimal totalElapsedHours = (decimal)(timeOutLocal - timeInLocal).TotalHours;
+                decimal lunchBreakDeduction = totalElapsedHours >= 5.0m ? 1.0m : 0.0m;
+                decimal netHoursWorked = totalElapsedHours - lunchBreakDeduction;
+
+                if (netHoursWorked < 8.0m)
+                {
+                    undertimeHoursTotal += (8.0m - netHoursWorked);
                 }
             }
         }
@@ -210,7 +210,7 @@ public class PayrollController : ControllerBase
         // Regular Holiday: (Hours / 8) * D5 (matches =(C8/8)*D5)
         decimal regularHolidayPay = (queryParams.RegularHolidayHours / 8.0m) * actualDailyRate * 1.0m;
 
-        // Overtime Pay: (Hours / 8) * D5 * 1.25 (updated multiplier)
+        // Overtime Pay: 125% multiplier -> (Hours / 8) * D5 * 1.25
         decimal overtimePay = (queryParams.OvertimeHours / 8.0m) * actualDailyRate * 1.25m;
 
         // Leave Pay: (Hours / 8) * D5
