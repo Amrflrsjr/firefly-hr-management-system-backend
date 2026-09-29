@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using System.Globalization;
 
 namespace FireflyHR.API.Controllers;
 
@@ -231,32 +232,57 @@ public class PayrollController : ControllerBase
         decimal absentDeduction = queryParams.AbsentDays * actualDailyRate;
 
         // 2. Statutory Government Contributions (Fixed per spreadsheet values)
+        // 2. Statutory Government Contributions (Fixed per spreadsheet values)
         decimal sssDeduction = 0;
         decimal philHealthDeduction = 0;
         decimal pagIbigDeduction = 0;
 
         if (employee.HasGovernmentDeductions)
         {
-            bool isPerPeriod = employee.DeductionType == "Per Pay Period";
-
             // Spreadsheet full monthly baselines
             decimal monthlySss = 720.0m;
             decimal monthlyPhilHealth = 360.0m;
             decimal monthlyPagIbig = 100.0m;
 
-            if (isPerPeriod)
+            if (employee.DeductionType == "Per Pay Period")
             {
-                // Split across two cutoffs if set to Per Pay Period
+                // Split across two cutoffs (15th and End of Month)
                 sssDeduction = monthlySss / 2.0m;
                 philHealthDeduction = monthlyPhilHealth / 2.0m;
                 pagIbigDeduction = monthlyPagIbig / 2.0m;
             }
-            else
+            else if (employee.DeductionType == "Every 15th Pay Period")
             {
-                // Full monthly deduction if set to Monthly
-                sssDeduction = monthlySss;
-                philHealthDeduction = monthlyPhilHealth;
-                pagIbigDeduction = monthlyPagIbig;
+                // Full monthly deduction ONLY if current computation is for the 15th pay period
+                if (queryParams.PayPeriod == "15th")
+                {
+                    sssDeduction = monthlySss;
+                    philHealthDeduction = monthlyPhilHealth;
+                    pagIbigDeduction = monthlyPagIbig;
+                }
+                else
+                {
+                    // Zero out for End of Month pay period
+                    sssDeduction = 0;
+                    philHealthDeduction = 0;
+                    pagIbigDeduction = 0;
+                }
+            }
+            else // Default / Monthly
+            {
+                // Full monthly deduction applied at the end of the month cutoff (or default behavior)
+                if (queryParams.PayPeriod != "15th")
+                {
+                    sssDeduction = monthlySss;
+                    philHealthDeduction = monthlyPhilHealth;
+                    pagIbigDeduction = monthlyPagIbig;
+                }
+                else
+                {
+                    sssDeduction = 0;
+                    philHealthDeduction = 0;
+                    pagIbigDeduction = 0;
+                }
             }
         }
 
@@ -482,12 +508,79 @@ public class PayrollController : ControllerBase
         return Ok(generatedSlips);
     }
 
+    private const string Navy = "#1F2A44";
+    private const string Accent = "#F5A623";
+    private const string AccentBg = "#FFF6E5";
+    private const string Ink = "#1F2937";
+    private const string Muted = "#6B7280";
+    private const string Line = "#E5E7EB";
+    private const string Zebra = "#F8FAFC";
+    private const string Danger = "#B91C1C";
+    private const string Success = "#047857";
+
+    private static string Money(IFormattable value) =>
+        "₱" + value.ToString("N2", CultureInfo.InvariantCulture);
+
+    private static void InfoBlock(IContainer container, string label, string value, string? sub = null)
+    {
+        container.Column(c =>
+        {
+            c.Item().Text(label.ToUpper()).FontSize(7).SemiBold().LetterSpacing(0.08f).FontColor(Muted);
+            c.Item().PaddingTop(2).Text(value).FontSize(11).Bold().FontColor(Ink);
+            if (sub != null)
+                c.Item().PaddingTop(1).Text(sub).FontSize(7.5f).FontColor(Muted);
+        });
+    }
+
+    private static void Section(
+        IContainer container,
+        string title,
+        (string Label, string Amount)[] items,
+        string totalLabel,
+        string totalAmount,
+        string totalColor)
+    {
+        container
+            .Border(1).BorderColor(Line)
+            .CornerRadius(6)
+            .Column(col =>
+            {
+                // Section header
+                col.Item().Background(Navy).PaddingVertical(8).PaddingHorizontal(12)
+                    .Text(title.ToUpper()).FontSize(8).Bold().LetterSpacing(0.08f).FontColor(Colors.White);
+
+                // Zebra-striped line items
+                for (int i = 0; i < items.Length; i++)
+                {
+                    var (label, amount) = items[i];
+                    col.Item()
+                        .Background(i % 2 == 0 ? Colors.White : Zebra)
+                        .PaddingVertical(6).PaddingHorizontal(12)
+                        .Row(r =>
+                        {
+                            r.RelativeItem().Text(label).FontSize(9).FontColor(Ink);
+                            r.AutoItem().Text(amount).FontSize(9).FontColor(Ink);
+                        });
+                }
+
+                // Total row
+                col.Item().BorderTop(1.5f).BorderColor(Navy)
+                    .Background(Zebra)
+                    .PaddingVertical(8).PaddingHorizontal(12)
+                    .Row(r =>
+                    {
+                        r.RelativeItem().Text(totalLabel).FontSize(9.5f).Bold().FontColor(Ink);
+                        r.AutoItem().Text(totalAmount).FontSize(9.5f).Bold().FontColor(totalColor);
+                    });
+            });
+    }
+
     [HttpGet("download-payslip/{idOrPeriod}")]
     public async Task<IActionResult> DownloadPayslipPdf(string idOrPeriod, [FromQuery] int? employeeId = null, [FromQuery] string? payPeriod = null)
     {
         PaySlip? payrollRecord = null;
 
-        // Check if the parameter is a numeric database ID
+        // Numeric database ID
         if (int.TryParse(idOrPeriod, out int recordId) && recordId != 999)
         {
             payrollRecord = await _context.PaySlips
@@ -495,7 +588,7 @@ public class PayrollController : ControllerBase
                 .FirstOrDefaultAsync(p => p.Id == recordId);
         }
 
-        // Fallback: If it's a placeholder (999) or a string period name, lookup by employee & period
+        // Fallback: placeholder (999) or period name → lookup by employee & period
         if (payrollRecord == null && employeeId.HasValue)
         {
             string targetPeriod = payPeriod ?? (idOrPeriod.Contains("15th") ? "15th Pay Period" : "End of Month Pay Period");
@@ -513,7 +606,7 @@ public class PayrollController : ControllerBase
 
         if (payrollRecord == null) return NotFound("Payslip record not found.");
 
-        // Employee name formatting
+        // Names / filename
         string employeeName = payrollRecord.Employee != null
             ? $"{payrollRecord.Employee.LastName}_{payrollRecord.Employee.FirstName}"
             : "Employee";
@@ -523,146 +616,148 @@ public class PayrollController : ControllerBase
         string currentDate = DateTime.UtcNow.ToString("yyyy-MM-dd");
         string filename = $"{cleanEmployeeName}_{payslipType}_{currentDate}.pdf";
 
+        string displayName = employeeName.Replace("_", " ");
+        string department = $"{payrollRecord.Employee?.OfficeType ?? "General"} Staff";
+        string periodEnd = Convert.ToDateTime(payrollRecord.PayPeriodEnd).ToString("MMMM dd, yyyy", CultureInfo.InvariantCulture);
+        string dailyRate = Money(payrollRecord.DailySalary + payrollRecord.DailyAllowance);
+
+        var earnings = new (string, string)[]
+        {
+        ("Basic Pay",        Money(payrollRecord.BasicPay)),
+        ("Overtime Pay",     Money(payrollRecord.OvertimePay)),
+        ("Regular Holiday",  Money(payrollRecord.RegularHolidayPay)),
+        ("Special Holiday",  Money(payrollRecord.SpecialHolidayPay)),
+        ("Approved Leave",   Money(payrollRecord.LeavePay)),
+        };
+
+        var deductions = new (string, string)[]
+        {
+        ("Late / Undertime",               Money(payrollRecord.LateDeduction + payrollRecord.UndertimeDeduction)),
+        ("Absent Deductions",              Money(payrollRecord.AbsentDeduction)),
+        ("Cash Advance",                   Money(payrollRecord.CashAdvanceDeduction)),
+        ("Govt (SSS / PhilHealth / Pag-IBIG)", Money(payrollRecord.GovernmentContributions)),
+        };
+
         var document = Document.Create(container =>
         {
             container.Page(page =>
             {
                 page.Size(PageSizes.A4);
-                page.Margin(25);
+                page.Margin(0); // full-bleed header band; padding is applied per section
                 page.PageColor(Colors.White);
+                // Font fallbacks so the ₱ glyph renders on Windows and Linux hosts
+                page.DefaultTextStyle(x => x.FontFamily("Lato").FontSize(9).FontColor(Ink));
 
-                page.Header().Column(headerCol =>
+                // ── HEADER ───────────────────────────────────────
+                page.Header().Column(header =>
                 {
-                    headerCol.Item().Row(row =>
+                    header.Item().Background(Navy).PaddingHorizontal(32).PaddingVertical(22).Row(row =>
                     {
                         row.RelativeItem().Column(col =>
                         {
-                            col.Item().Text("Firefly Crafts PH").Bold().FontSize(14).FontColor(Colors.Grey.Darken4);
-                            col.Item().Text("NXF Sticker Shop • Official Employee Pay Slip").FontSize(9).FontColor(Colors.Grey.Medium);
-                            col.Item().Text("Unit #26, 2nd Flr, J&G Bldg, H. Abellana St., Canduman, Mandaue City").FontSize(8).FontColor(Colors.Grey.Medium);
+                            col.Item().Text("Firefly Crafts PH").FontSize(18).Bold().FontColor(Colors.White);
+                            col.Item().PaddingTop(2).Text("NXF Sticker Shop").FontSize(9).SemiBold().FontColor(Accent);
+                            col.Item().PaddingTop(6).Text("Unit #26, 2nd Flr, J&G Bldg, H. Abellana St., Canduman, Mandaue City")
+                                .FontSize(7.5f).FontColor(Colors.Grey.Lighten2);
                         });
 
-                        row.ConstantItem(180).Column(col =>
+                        row.ConstantItem(190).AlignRight().Column(col =>
                         {
-                            col.Item().AlignRight().Text("PAYSLIP").Bold().FontSize(20).FontColor(Colors.Grey.Darken3);
-                            col.Item().AlignRight().Text($"Period: {payrollRecord.PayPeriod}").Bold().FontSize(9).FontColor(Colors.Grey.Darken2);
-                            col.Item().AlignRight().Text($"Date: {Convert.ToDateTime(payrollRecord.PayPeriodEnd):MMM dd, yyyy}").FontSize(9).FontColor(Colors.Grey.Medium);
+                            col.Item().AlignRight().Text("PAYSLIP").FontSize(24).Bold().LetterSpacing(0.1f).FontColor(Colors.White);
+                            col.Item().AlignRight().PaddingTop(2).Text(payrollRecord.PayPeriod ?? "").FontSize(9).SemiBold().FontColor(Accent);
+                            col.Item().AlignRight().Text($"Period ending {periodEnd}").FontSize(8).FontColor(Colors.Grey.Lighten2);
                         });
                     });
-                    headerCol.Item().PaddingTop(12).LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
+
+                    header.Item().Height(4).Background(Accent);
                 });
 
-                page.Content().PaddingVertical(15).Column(col =>
+                // ── CONTENT ──────────────────────────────────────
+                page.Content().PaddingHorizontal(32).PaddingVertical(22).Column(col =>
                 {
+                    col.Spacing(18);
+
+                    // Employee summary card
                     col.Item()
-                        .Border(1)
-                        .BorderColor(Colors.Grey.Lighten2)
-                        .Background(Colors.Grey.Lighten4)
-                        .CornerRadius(6)
-                        .Padding(12)
-                        .Row(row =>
-                        {
-                            row.RelativeItem().Column(c =>
-                            {
-                                c.Item().Text("EMPLOYEE DETAILS").Bold().FontSize(8).FontColor(Colors.Grey.Medium);
-                                c.Item().PaddingTop(2);
-                                c.Item().Text(employeeName.Replace("_", " ")).Bold().FontSize(11).FontColor(Colors.Grey.Darken4);
-                                c.Item().Text($"Position / Department: {payrollRecord.Employee?.OfficeType ?? "General"} Staff").FontSize(9).FontColor(Colors.Grey.Darken2);
-                            });
-
-                            row.ConstantItem(150).AlignRight().Column(c =>
-                            {
-                                c.Item().Text("COMPENSATION RATE").Bold().FontSize(8).FontColor(Colors.Grey.Medium);
-                                c.Item().PaddingTop(2);
-                                c.Item().Text($"₱{(payrollRecord.DailySalary + payrollRecord.DailyAllowance):N2} / day").Bold().FontSize(10).FontColor(Colors.Grey.Darken4);
-                                c.Item().Text($"(Base: ₱{payrollRecord.DailySalary:N2} + Allowance: ₱{payrollRecord.DailyAllowance:N2})").FontSize(7).FontColor(Colors.Grey.Medium);
-                            });
-                        });
-
-                    col.Item().PaddingTop(15);
-
-                    col.Item().Row(row =>
-                    {
-                        row.RelativeItem()
-                            .Border(1)
-                            .BorderColor(Colors.Grey.Lighten2)
-                            .CornerRadius(6)
-                            .Column(eCol =>
-                            {
-                                eCol.Item().Background(Colors.Grey.Darken3).Padding(8).Text("EARNINGS & ADDITIONS").Bold().FontColor(Colors.White).FontSize(9);
-                                eCol.Item().Padding(8).Column(itemCol =>
-                                {
-                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Basic Pay").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.BasicPay:N2}").FontSize(9); });
-                                    itemCol.Item().PaddingTop(4);
-                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Overtime Pay").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.OvertimePay:N2}").FontSize(9); });
-                                    itemCol.Item().PaddingTop(4);
-                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Regular Holiday").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.RegularHolidayPay:N2}").FontSize(9); });
-                                    itemCol.Item().PaddingTop(4);
-                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Special Holiday").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.SpecialHolidayPay:N2}").FontSize(9); });
-                                    itemCol.Item().PaddingTop(4);
-                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Approved Leave").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.LeavePay:N2}").FontSize(9); });
-
-                                    itemCol.Item().PaddingTop(10).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten2);
-                                    itemCol.Item().PaddingTop(6);
-                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Gross Earnings").Bold().FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.GrossEarnings:N2}").Bold().FontSize(9); });
-                                });
-                            });
-
-                        row.ConstantItem(12);
-
-                        row.RelativeItem()
-                            .Border(1)
-                            .BorderColor(Colors.Grey.Lighten2)
-                            .CornerRadius(6)
-                            .Column(dCol =>
-                            {
-                                dCol.Item().Background(Colors.Grey.Darken3).Padding(8).Text("DEDUCTIONS & CONTRIBUTIONS").Bold().FontColor(Colors.White).FontSize(9);
-                                dCol.Item().Padding(8).Column(itemCol =>
-                                {
-                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Late / Undertime").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{(payrollRecord.LateDeduction + payrollRecord.UndertimeDeduction):N2}").FontSize(9); });
-                                    itemCol.Item().PaddingTop(4);
-                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Absent Deductions").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.AbsentDeduction:N2}").FontSize(9); });
-                                    itemCol.Item().PaddingTop(4);
-                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Cash Advance").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.CashAdvanceDeduction:N2}").FontSize(9); });
-                                    itemCol.Item().PaddingTop(4);
-                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Govt (SSS/PhilHealth/Pag-IBIG)").FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.GovernmentContributions:N2}").FontSize(9); });
-
-                                    itemCol.Item().PaddingTop(10).LineHorizontal(0.5f).LineColor(Colors.Grey.Lighten2);
-                                    itemCol.Item().PaddingTop(6);
-                                    itemCol.Item().Row(r => { r.RelativeItem().Text("Total Deductions").Bold().FontSize(9); r.ConstantItem(70).AlignRight().Text($"₱{payrollRecord.TotalDeductions:N2}").Bold().FontSize(9).FontColor(Colors.Red.Medium); });
-                                });
-                            });
-                    });
-
-                    col.Item().PaddingTop(20);
-
-                    col.Item()
-                        .Border(1)
-                        .BorderColor(Colors.Amber.Medium)
-                        .Background(Colors.Amber.Lighten5)
-                        .CornerRadius(6)
+                        .Background(Zebra)
+                        .BorderLeft(4).BorderColor(Accent)
+                        .Border(1).BorderColor(Line)
                         .Padding(14)
                         .Row(row =>
                         {
+                            row.RelativeItem(3).Element(e => InfoBlock(e, "Employee", displayName));
+                            row.RelativeItem(2).Element(e => InfoBlock(e, "Department", department));
+                            row.RelativeItem(2).Element(e => InfoBlock(
+                                e, "Daily Rate", dailyRate,
+                                $"Base {Money(payrollRecord.DailySalary)} + Allow. {Money(payrollRecord.DailyAllowance)}"));
+                        });
+
+                    // Earnings & deductions side by side
+                    col.Item().Row(row =>
+                    {
+                        row.Spacing(14);
+
+                        row.RelativeItem().Element(e => Section(
+                            e, "Earnings & Additions", earnings,
+                            "Gross Earnings", Money(payrollRecord.GrossEarnings), Success));
+
+                        row.RelativeItem().Element(e => Section(
+                            e, "Deductions & Contributions", deductions,
+                            "Total Deductions", Money(payrollRecord.TotalDeductions), Danger));
+                    });
+
+                    // Net pay banner
+                    col.Item()
+                        .Background(Navy)
+                        .CornerRadius(8)
+                        .Padding(18)
+                        .Row(row =>
+                        {
                             row.RelativeItem().Column(c =>
                             {
-                                c.Item().Text("NET RECEIVABLE PAY").Bold().FontSize(10).FontColor(Colors.Amber.Darken4);
-                                c.Item().Text("Total take-home pay for the current pay period").FontSize(8).FontColor(Colors.Grey.Darken1);
+                                c.Item().Text("NET RECEIVABLE PAY").FontSize(10).Bold().LetterSpacing(0.08f).FontColor(Accent);
+                                c.Item().PaddingTop(2).Text("Total take-home pay for this pay period")
+                                    .FontSize(8).FontColor(Colors.Grey.Lighten2);
                             });
 
-                            row.ConstantItem(180).AlignRight().Column(c =>
-                            {
-                                c.Item().AlignRight().Text($"₱{payrollRecord.NetReceivable:N2}").Bold().FontSize(16).FontColor(Colors.Black);
-                            });
+                            row.AutoItem().AlignMiddle().Text(Money(payrollRecord.NetReceivable))
+                                .FontSize(22).Bold().FontColor(Colors.White);
                         });
+
+                    // Signatures
+                    col.Item().PaddingTop(28).Row(row =>
+                    {
+                        row.Spacing(50);
+
+                        foreach (var label in new[] { "Employee Signature", "Authorized by (Employer)" })
+                        {
+                            row.RelativeItem().Column(c =>
+                            {
+                                c.Item().BorderBottom(1).BorderColor(Muted).Height(28);
+                                c.Item().PaddingTop(4).AlignCenter().Text(label).FontSize(8).FontColor(Muted);
+                            });
+                        }
+                    });
                 });
 
-                page.Footer().AlignCenter().Text(text =>
+                // ── FOOTER ───────────────────────────────────────
+                page.Footer().PaddingHorizontal(32).PaddingBottom(16).Column(f =>
                 {
-                    text.Span("Page ").FontSize(8).FontColor(Colors.Grey.Medium);
-                    text.CurrentPageNumber().FontSize(8).FontColor(Colors.Grey.Medium);
-                    text.Span(" of ").FontSize(8).FontColor(Colors.Grey.Medium);
-                    text.TotalPages().FontSize(8).FontColor(Colors.Grey.Medium);
+                    f.Item().LineHorizontal(0.75f).LineColor(Line);
+                    f.Item().PaddingTop(6).Row(row =>
+                    {
+                        row.RelativeItem().Text("Confidential — for the named employee only. Please report any discrepancies to HR.")
+                            .FontSize(7).FontColor(Muted);
+
+                        row.AutoItem().Text(text =>
+                        {
+                            text.DefaultTextStyle(s => s.FontSize(7).FontColor(Muted));
+                            text.Span($"Generated {DateTime.UtcNow:MMM dd, yyyy}  •  Page ");
+                            text.CurrentPageNumber();
+                            text.Span(" of ");
+                            text.TotalPages();
+                        });
+                    });
                 });
             });
         });
