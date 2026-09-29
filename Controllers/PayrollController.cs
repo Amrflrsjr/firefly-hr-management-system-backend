@@ -119,7 +119,9 @@ public class PayrollController : ControllerBase
                     // Fixed 9:00 AM - 6:00 PM with grace period allowing up to 9:05:59 AM
                     DateTime expectedIn = timeInLocal.Date.AddHours(9);
                     DateTime graceLimit = expectedIn.AddMinutes(5).AddSeconds(59);
+                    DateTime standardShiftEnd = timeInLocal.Date.AddHours(18);
 
+                    // 1. Independent Late Calculation
                     if (timeInLocal > graceLimit)
                     {
                         double lateMinutes = Math.Round((timeInLocal - expectedIn).TotalMinutes);
@@ -130,9 +132,16 @@ public class PayrollController : ControllerBase
                         effectiveTimeIn = expectedIn;
                     }
 
-                    // Rule: If they timed out at 6:00 PM or later, consider it a full 8 hours (0 undertime)
-                    DateTime standardShiftEnd = timeInLocal.Date.AddHours(18);
-                    if (timeOutLocal >= standardShiftEnd)
+                    // 2. Independent Undertime Calculation (Check gap from 6:00 PM if left early)
+                    if (timeOutLocal < standardShiftEnd)
+                    {
+                        double undertimeMinutes = Math.Round((standardShiftEnd - timeOutLocal).TotalMinutes);
+                        undertimeHoursTotal += (decimal)(undertimeMinutes / 60.0);
+                    }
+
+                    // Net hours check for standard attendance count
+                    DateTime expectedOut = timeInLocal.Date.AddHours(18);
+                    if (timeOutLocal >= expectedOut)
                     {
                         netHoursWorked = 8.0m;
                     }
@@ -158,12 +167,12 @@ public class PayrollController : ControllerBase
                     decimal totalElapsedHours = (decimal)(totalElapsedMinutes / 60.0);
                     decimal lunchBreakDeduction = totalElapsedHours >= 5.0m ? 1.0m : 0.0m;
                     netHoursWorked = totalElapsedHours - lunchBreakDeduction;
-                }
 
-                if (netHoursWorked < 8.0m)
-                {
-                    decimal deficitMinutes = (decimal)Math.Round((8.0m - netHoursWorked) * 60.0m);
-                    undertimeHoursTotal += deficitMinutes / 60.0m;
+                    if (netHoursWorked < 8.0m)
+                    {
+                        decimal deficitMinutes = (decimal)Math.Round((8.0m - netHoursWorked) * 60.0m);
+                        undertimeHoursTotal += deficitMinutes / 60.0m;
+                    }
                 }
             }
         }
@@ -255,46 +264,24 @@ public class PayrollController : ControllerBase
                 DateTime timeInLocal = timeInUtc.Value.ToUniversalTime().AddHours(8);
                 DateTime timeOutLocal = timeOutUtc.Value.ToUniversalTime().AddHours(8);
 
-                DateTime effectiveTimeIn = timeInLocal;
-                decimal netHoursWorked = 0;
+                decimal dayUndertime = 0;
                 string evaluationNote = "Normal";
 
                 if (employee.OfficeType == "Admin")
                 {
-                    DateTime expectedIn = timeInLocal.Date.AddHours(9);
-                    DateTime graceLimit = expectedIn.AddMinutes(5).AddSeconds(59);
+                    DateTime standardShiftEnd = timeInLocal.Date.AddHours(18); // 6:00 PM
 
-                    if (timeInLocal > graceLimit)
+                    if (timeOutLocal < standardShiftEnd)
                     {
-                        effectiveTimeIn = timeInLocal; // Late counts separately
-                    }
-                    else if (timeInLocal > expectedIn && timeInLocal <= graceLimit)
-                    {
-                        effectiveTimeIn = expectedIn;
-                    }
-
-                    DateTime standardShiftEnd = timeInLocal.Date.AddHours(18);
-                    if (timeOutLocal >= standardShiftEnd)
-                    {
-                        netHoursWorked = 8.0m;
-                        evaluationNote = "Timed out >= 6:00 PM (Full 8h credit)";
+                        double undertimeMinutes = Math.Round((standardShiftEnd - timeOutLocal).TotalMinutes);
+                        dayUndertime = (decimal)(undertimeMinutes / 60.0);
+                        totalUndertimeDebug += dayUndertime;
+                        evaluationNote = $"Left early by {undertimeMinutes} mins before 6:00 PM";
                     }
                     else
                     {
-                        double elapsedMinutes = Math.Round((timeOutLocal - effectiveTimeIn).TotalMinutes);
-                        decimal totalElapsedHours = (decimal)(elapsedMinutes / 60.0);
-                        decimal lunchBreakDeduction = totalElapsedHours >= 5.0m ? 1.0m : 0.0m;
-                        netHoursWorked = totalElapsedHours - lunchBreakDeduction;
-                        evaluationNote = $"Left early. Elapsed: {totalElapsedHours}h - Lunch: {lunchBreakDeduction}h";
+                        evaluationNote = "Timed out >= 6:00 PM (0 undertime)";
                     }
-                }
-
-                decimal dayUndertime = 0;
-                if (netHoursWorked < 8.0m)
-                {
-                    decimal deficitMinutes = (decimal)Math.Round((8.0m - netHoursWorked) * 60.0m);
-                    dayUndertime = deficitMinutes / 60.0m;
-                    totalUndertimeDebug += dayUndertime;
                 }
 
                 dailyLogsList.Add(new
@@ -302,7 +289,6 @@ public class PayrollController : ControllerBase
                     Date = dayDate.ToString("yyyy-MM-dd"),
                     TimeInLocal = timeInLocal.ToString("HH:mm:ss"),
                     TimeOutLocal = timeOutLocal.ToString("HH:mm:ss"),
-                    NetHoursWorked = netHoursWorked,
                     UndertimeAdded = Math.Round(dayUndertime, 4),
                     Note = evaluationNote
                 });
