@@ -114,21 +114,21 @@ public class PayrollController : ControllerBase
 
                 if (employee.OfficeType == "Admin")
                 {
-                    // Fixed 9:00 AM - 6:00 PM with 5-min grace period (9:05 AM threshold)
+                    // Fixed 9:00 AM - 6:00 PM with grace period allowing up to 9:05:59 AM
                     DateTime expectedIn = timeInLocal.Date.AddHours(9);
-                    DateTime graceThreshold = expectedIn.AddMinutes(5);
+                    DateTime graceLimit = expectedIn.AddMinutes(5).AddSeconds(59);
 
-                    if (timeInLocal > graceThreshold)
+                    if (timeInLocal > graceLimit)
                     {
-                        lateHoursTotal += (decimal)(timeInLocal - expectedIn).TotalHours;
+                        double lateMinutes = Math.Round((timeInLocal - expectedIn).TotalMinutes);
+                        lateHoursTotal += (decimal)(lateMinutes / 60.0);
                     }
-                    else if (timeInLocal > expectedIn && timeInLocal <= graceThreshold)
+                    else if (timeInLocal > expectedIn && timeInLocal <= graceLimit)
                     {
                         effectiveTimeIn = expectedIn;
                     }
 
                     // Rule: If they timed out at 6:00 PM or later, consider it a full 8 hours (0 undertime)
-                    // Late hours are already tracked separately above, preventing double-penalization.
                     DateTime standardShiftEnd = timeInLocal.Date.AddHours(18);
                     if (timeOutLocal >= standardShiftEnd)
                     {
@@ -136,7 +136,8 @@ public class PayrollController : ControllerBase
                     }
                     else
                     {
-                        decimal totalElapsedHours = (decimal)(timeOutLocal - effectiveTimeIn).TotalHours;
+                        double elapsedMinutes = Math.Round((timeOutLocal - effectiveTimeIn).TotalMinutes);
+                        decimal totalElapsedHours = (decimal)(elapsedMinutes / 60.0);
                         decimal lunchBreakDeduction = totalElapsedHours >= 5.0m ? 1.0m : 0.0m;
                         netHoursWorked = totalElapsedHours - lunchBreakDeduction;
                     }
@@ -147,17 +148,20 @@ public class PayrollController : ControllerBase
                     DateTime maxAllowedIn = timeInLocal.Date.AddHours(10);
                     if (timeInLocal > maxAllowedIn)
                     {
-                        lateHoursTotal += (decimal)(timeInLocal - maxAllowedIn).TotalHours;
+                        double prodLateMinutes = Math.Round((timeInLocal - maxAllowedIn).TotalMinutes);
+                        lateHoursTotal += (decimal)(prodLateMinutes / 60.0);
                     }
 
-                    decimal totalElapsedHours = (decimal)(timeOutLocal - effectiveTimeIn).TotalHours;
+                    double totalElapsedMinutes = Math.Round((timeOutLocal - effectiveTimeIn).TotalMinutes);
+                    decimal totalElapsedHours = (decimal)(totalElapsedMinutes / 60.0);
                     decimal lunchBreakDeduction = totalElapsedHours >= 5.0m ? 1.0m : 0.0m;
                     netHoursWorked = totalElapsedHours - lunchBreakDeduction;
                 }
 
                 if (netHoursWorked < 8.0m)
                 {
-                    undertimeHoursTotal += (8.0m - netHoursWorked);
+                    decimal deficitMinutes = (decimal)Math.Round((8.0m - netHoursWorked) * 60.0m);
+                    undertimeHoursTotal += deficitMinutes / 60.0m;
                 }
             }
         }
@@ -644,9 +648,9 @@ public class PayrollController : ControllerBase
 
         var deductions = new (string, string)[]
         {
-        ("Late / Undertime",                 Money(payrollRecord.LateDeduction + payrollRecord.UndertimeDeduction)),
-        ("Absent Deductions",                Money(payrollRecord.AbsentDeduction)),
-        ("Cash Advance",                     Money(payrollRecord.CashAdvanceDeduction)),
+        ("Late / Undertime",                     Money(payrollRecord.LateDeduction + payrollRecord.UndertimeDeduction)),
+        ("Absent Deductions",                    Money(payrollRecord.AbsentDeduction)),
+        ("Cash Advance",                         Money(payrollRecord.CashAdvanceDeduction)),
         ("Govt (SSS / PhilHealth / Pag-IBIG)", Money(payrollRecord.GovernmentContributions)),
         };
 
