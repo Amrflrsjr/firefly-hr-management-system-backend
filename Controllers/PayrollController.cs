@@ -201,6 +201,122 @@ public class PayrollController : ControllerBase
         });
     }
 
+    [HttpGet("debug-undertime/{employeeId}")]
+    public async Task<IActionResult> DebugUndertime(int employeeId, [FromQuery] string payPeriod = "15th")
+    {
+        var employee = await _context.Employees.FindAsync(employeeId);
+        if (employee == null) return NotFound("Employee not found.");
+
+        DateTime now = DateTime.UtcNow;
+        DateTime startDate;
+        DateTime endDate;
+
+        if (payPeriod == "15th")
+        {
+            DateTime prevMonth = now.AddMonths(-1);
+            int lastDayPrevMonth = DateTime.DaysInMonth(prevMonth.Year, prevMonth.Month);
+            startDate = new DateTime(prevMonth.Year, prevMonth.Month, Math.Min(30, lastDayPrevMonth), 0, 0, 0, DateTimeKind.Utc);
+            endDate = new DateTime(now.Year, now.Month, 13, 15, 59, 59, DateTimeKind.Utc);
+        }
+        else
+        {
+            startDate = new DateTime(now.Year, now.Month, 14, 0, 0, 0, DateTimeKind.Utc);
+            endDate = new DateTime(now.Year, now.Month, 28, 15, 59, 59, DateTimeKind.Utc);
+        }
+
+        var periodHolidays = await _context.Holidays
+            .Where(h => h.HolidayDate >= startDate && h.HolidayDate <= endDate)
+            .ToListAsync();
+        var holidayDates = periodHolidays.Select(h => h.HolidayDate.Date).ToHashSet();
+
+        var timeRecords = await _context.TimeRecords
+            .Where(t => t.EmployeeId == employeeId && t.DateCreated >= startDate && t.DateCreated <= endDate)
+            .OrderBy(t => t.DateCreated)
+            .ToListAsync();
+
+        var groupedLogs = timeRecords.GroupBy(t => t.DateCreated.Date);
+        var dailyLogsList = new List<object>();
+        decimal totalUndertimeDebug = 0;
+
+        foreach (var group in groupedLogs)
+        {
+            var dayDate = group.Key;
+            var holiday = periodHolidays.FirstOrDefault(h => h.HolidayDate.Date == dayDate);
+            var dayLogs = group.OrderBy(t => t.DateCreated).ToList();
+
+            var firstIn = dayLogs.FirstOrDefault(t => t.Type != null && (t.Type.Equals("IN", StringComparison.OrdinalIgnoreCase) || t.Type.Equals("Time IN", StringComparison.OrdinalIgnoreCase)));
+            var lastOut = dayLogs.LastOrDefault(t => t.Type != null && (t.Type.Equals("OUT", StringComparison.OrdinalIgnoreCase) || t.Type.Equals("Time OUT", StringComparison.OrdinalIgnoreCase)));
+
+            var timeInUtc = firstIn?.DateCreated;
+            var timeOutUtc = lastOut?.DateCreated;
+
+            if (holiday == null && timeInUtc.HasValue && timeOutUtc.HasValue)
+            {
+                DateTime timeInLocal = timeInUtc.Value.ToUniversalTime().AddHours(8);
+                DateTime timeOutLocal = timeOutUtc.Value.ToUniversalTime().AddHours(8);
+
+                DateTime effectiveTimeIn = timeInLocal;
+                decimal netHoursWorked = 0;
+                string evaluationNote = "Normal";
+
+                if (employee.OfficeType == "Admin")
+                {
+                    DateTime expectedIn = timeInLocal.Date.AddHours(9);
+                    DateTime graceLimit = expectedIn.AddMinutes(5).AddSeconds(59);
+
+                    if (timeInLocal > graceLimit)
+                    {
+                        effectiveTimeIn = timeInLocal; // Late counts separately
+                    }
+                    else if (timeInLocal > expectedIn && timeInLocal <= graceLimit)
+                    {
+                        effectiveTimeIn = expectedIn;
+                    }
+
+                    DateTime standardShiftEnd = timeInLocal.Date.AddHours(18);
+                    if (timeOutLocal >= standardShiftEnd)
+                    {
+                        netHoursWorked = 8.0m;
+                        evaluationNote = "Timed out >= 6:00 PM (Full 8h credit)";
+                    }
+                    else
+                    {
+                        double elapsedMinutes = Math.Round((timeOutLocal - effectiveTimeIn).TotalMinutes);
+                        decimal totalElapsedHours = (decimal)(elapsedMinutes / 60.0);
+                        decimal lunchBreakDeduction = totalElapsedHours >= 5.0m ? 1.0m : 0.0m;
+                        netHoursWorked = totalElapsedHours - lunchBreakDeduction;
+                        evaluationNote = $"Left early. Elapsed: {totalElapsedHours}h - Lunch: {lunchBreakDeduction}h";
+                    }
+                }
+
+                decimal dayUndertime = 0;
+                if (netHoursWorked < 8.0m)
+                {
+                    decimal deficitMinutes = (decimal)Math.Round((8.0m - netHoursWorked) * 60.0m);
+                    dayUndertime = deficitMinutes / 60.0m;
+                    totalUndertimeDebug += dayUndertime;
+                }
+
+                dailyLogsList.Add(new
+                {
+                    Date = dayDate.ToString("yyyy-MM-dd"),
+                    TimeInLocal = timeInLocal.ToString("HH:mm:ss"),
+                    TimeOutLocal = timeOutLocal.ToString("HH:mm:ss"),
+                    NetHoursWorked = netHoursWorked,
+                    UndertimeAdded = Math.Round(dayUndertime, 4),
+                    Note = evaluationNote
+                });
+            }
+        }
+
+        return Ok(new
+        {
+            Employee = $"{employee.LastName}, {employee.FirstName}",
+            CalculatedTotalUndertime = Math.Round(totalUndertimeDebug, 2),
+            DailyBreakdown = dailyLogsList
+        });
+    }
+
     [HttpGet("compute/{employeeId}")]
     public async Task<IActionResult> ComputePayroll(int employeeId, [FromQuery] CalculatePayrollParams queryParams)
     {
