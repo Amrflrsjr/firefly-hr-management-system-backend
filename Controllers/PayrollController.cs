@@ -72,32 +72,34 @@ public class PayrollController : ControllerBase
         foreach (var group in groupedLogs)
         {
             var dayDate = group.Key;
-            var timeInUtc = group.FirstOrDefault(t => t.Type == "IN")?.DateCreated;
-            var timeOutUtc = group.FirstOrDefault(t => t.Type == "OUT")?.DateCreated;
+
+            // Robustly match IN and OUT types (supporting "IN"/"OUT" or "Time IN"/"Time OUT")
+            var timeInRecord = group.FirstOrDefault(t => t.Type != null &&
+                (t.Type.Equals("IN", StringComparison.OrdinalIgnoreCase) || t.Type.Equals("Time IN", StringComparison.OrdinalIgnoreCase)));
+            var timeOutRecord = group.FirstOrDefault(t => t.Type != null &&
+                (t.Type.Equals("OUT", StringComparison.OrdinalIgnoreCase) || t.Type.Equals("Time OUT", StringComparison.OrdinalIgnoreCase)));
+
+            var timeInUtc = timeInRecord?.DateCreated;
+            var timeOutUtc = timeOutRecord?.DateCreated;
 
             var holiday = periodHolidays.FirstOrDefault(h => h.HolidayDate.Date == dayDate);
 
-            if (timeInUtc.HasValue && timeOutUtc.HasValue)
+            if (timeInUtc.HasValue && timeOutUtc.HasValue && holiday != null)
             {
                 decimal hoursWorkedOnDay = (decimal)(timeOutUtc.Value - timeInUtc.Value).TotalHours;
+                decimal cappedHolidayHours = Math.Min(hoursWorkedOnDay, 8.0m);
 
-                if (holiday != null)
+                if (holiday.HolidayType == "Regular Holiday")
                 {
-                    // Cap daily holiday hours to a maximum of 8 hours per day
-                    decimal cappedHolidayHours = Math.Min(hoursWorkedOnDay, 8.0m);
-
-                    if (holiday.HolidayType == "Regular Holiday")
-                    {
-                        regularHolidayHoursTotal += cappedHolidayHours;
-                    }
-                    else if (holiday.HolidayType == "Special Non-Working Holiday")
-                    {
-                        specialNonWorkingHoursTotal += cappedHolidayHours;
-                    }
+                    regularHolidayHoursTotal += cappedHolidayHours;
+                }
+                else if (holiday.HolidayType == "Special Non-Working Holiday")
+                {
+                    specialNonWorkingHoursTotal += cappedHolidayHours;
                 }
             }
 
-            // Only compute late/undertime for regular non-holiday days
+            // Strict 9 AM - 6 PM check for regular non-holiday days
             if (holiday == null && timeInUtc.HasValue && timeOutUtc.HasValue)
             {
                 // Convert to Philippine Standard Time (+8) for shift comparisons

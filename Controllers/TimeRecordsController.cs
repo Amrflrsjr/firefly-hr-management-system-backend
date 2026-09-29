@@ -104,21 +104,37 @@ public class TimeRecordsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetTimeRecords([FromQuery] string? date = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 15)
+    public async Task<IActionResult> GetTimeRecords(
+        [FromQuery] string? startDate = null,
+        [FromQuery] string? endDate = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 15)
     {
         var query = _context.TimeRecords
             .Include(t => t.Employee)
             .OrderByDescending(t => t.DateCreated)
             .AsQueryable();
 
-        if (!string.IsNullOrEmpty(date) && DateTime.TryParse(date, out var parsedDate))
+        // Evaluate date filtering in memory against converted PST dates for absolute accuracy
+        if (!string.IsNullOrEmpty(startDate) || !string.IsNullOrEmpty(endDate))
         {
             var allRecords = await query.ToListAsync();
-            var filtered = allRecords.Where(t => GetPstTime(t.DateCreated).Date == parsedDate.Date).ToList();
+            var filtered = allRecords.AsEnumerable();
 
-            int totalCount = filtered.Count;
+            if (!string.IsNullOrEmpty(startDate) && DateTime.TryParse(startDate, out var parsedStart))
+            {
+                filtered = filtered.Where(t => GetPstTime(t.DateCreated).Date >= parsedStart.Date);
+            }
+
+            if (!string.IsNullOrEmpty(endDate) && DateTime.TryParse(endDate, out var parsedEnd))
+            {
+                filtered = filtered.Where(t => GetPstTime(t.DateCreated).Date <= parsedEnd.Date);
+            }
+
+            var filteredList = filtered.ToList();
+            int totalCount = filteredList.Count;
             int totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-            var pagedItems = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            var pagedItems = filteredList.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
             return Ok(new { items = pagedItems, totalCount, totalPages, currentPage = page });
         }
@@ -135,10 +151,11 @@ public class TimeRecordsController : ControllerBase
 
     [HttpGet("employee/{employeeId}")]
     public async Task<IActionResult> GetEmployeeTimeRecords(
-    int employeeId,
-    [FromQuery] string? date = null,
-    [FromQuery] int page = 1,
-    [FromQuery] int pageSize = 15)
+        int employeeId,
+        [FromQuery] string? startDate = null,
+        [FromQuery] string? endDate = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 15)
     {
         var query = _context.TimeRecords
             .Include(t => t.Employee)
@@ -146,14 +163,25 @@ public class TimeRecordsController : ControllerBase
             .OrderByDescending(t => t.DateCreated)
             .AsQueryable();
 
-        if (!string.IsNullOrEmpty(date) && DateTime.TryParse(date, out var parsedDate))
+        if (!string.IsNullOrEmpty(startDate) || !string.IsNullOrEmpty(endDate))
         {
             var allRecords = await query.ToListAsync();
-            var filtered = allRecords.Where(t => GetPstTime(t.DateCreated).Date == parsedDate.Date).ToList();
+            var filtered = allRecords.AsEnumerable();
 
-            int totalCount = filtered.Count;
+            if (!string.IsNullOrEmpty(startDate) && DateTime.TryParse(startDate, out var parsedStart))
+            {
+                filtered = filtered.Where(t => GetPstTime(t.DateCreated).Date >= parsedStart.Date);
+            }
+
+            if (!string.IsNullOrEmpty(endDate) && DateTime.TryParse(endDate, out var parsedEnd))
+            {
+                filtered = filtered.Where(t => GetPstTime(t.DateCreated).Date <= parsedEnd.Date);
+            }
+
+            var filteredList = filtered.ToList();
+            int totalCount = filteredList.Count;
             int totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
-            var pagedItems = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            var pagedItems = filteredList.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
             return Ok(new { items = pagedItems, totalCount, totalPages, currentPage = page });
         }
@@ -238,7 +266,6 @@ public class TimeRecordsController : ControllerBase
         bool hasClockedInToday = firstInToday != null;
         bool hasClockedOutToday = lastOutToday != null;
 
-        // Dynamically compute regular hours, overtime hours, and total hours from logs
         double regularHours = 0;
         double overtimeHours = 0;
 
@@ -260,7 +287,6 @@ public class TimeRecordsController : ControllerBase
                 {
                     double hours = (lastOut - firstIn).TotalHours;
 
-                    // Optional: Deduct 1 hour meal break if shift exceeds 6 hours
                     if (hours > 6.0) hours -= 1.0;
 
                     if (hours > 8.0)
@@ -277,12 +303,9 @@ public class TimeRecordsController : ControllerBase
         }
 
         double totalHours = regularHours + overtimeHours;
-
-        // Dynamically compute estimated payout based on DailySalary (assuming 8 hours/day)
         double hourlyRate = employee.DailySalary > 0 ? (double)(employee.DailySalary / 8.0m) : 0;
         double estimatedPayout = (regularHours * hourlyRate) + (overtimeHours * hourlyRate * 1.25);
 
-        // Calculate missed records based on PST calendar dates (excluding weekends)
         var recordedDaysPst = monthLogs
             .Where(t => t.Type == "IN")
             .Select(t => GetPstTime(t.DateCreated).Date)
