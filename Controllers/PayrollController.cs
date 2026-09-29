@@ -108,6 +108,8 @@ public class PayrollController : ControllerBase
                 DateTime timeInLocal = timeInUtc.Value.ToUniversalTime().AddHours(8);
                 DateTime timeOutLocal = timeOutUtc.Value.ToUniversalTime().AddHours(8);
 
+                DateTime effectiveTimeIn = timeInLocal;
+
                 if (employee.OfficeType == "Admin")
                 {
                     // Fixed 9:00 AM - 6:00 PM with 5-min grace period (9:05 AM threshold)
@@ -117,6 +119,11 @@ public class PayrollController : ControllerBase
                     if (timeInLocal > graceThreshold)
                     {
                         lateHoursTotal += (decimal)(timeInLocal - expectedIn).TotalHours;
+                    }
+                    else if (timeInLocal > expectedIn && timeInLocal <= graceThreshold)
+                    {
+                        // Grace period applied: treat effective time-in as sharp 9:00 AM for net work calculation
+                        effectiveTimeIn = expectedIn;
                     }
                 }
                 else if (employee.OfficeType == "Production")
@@ -129,8 +136,8 @@ public class PayrollController : ControllerBase
                     }
                 }
 
-                // Strict 8-Hour Net Work Enforcement (With 1-hour lunch break deduction)
-                decimal totalElapsedHours = (decimal)(timeOutLocal - timeInLocal).TotalHours;
+                // Strict 8-Hour Net Work Enforcement (With 1-hour lunch break deduction, using effective time-in)
+                decimal totalElapsedHours = (decimal)(timeOutLocal - effectiveTimeIn).TotalHours;
                 decimal lunchBreakDeduction = totalElapsedHours >= 5.0m ? 1.0m : 0.0m;
                 decimal netHoursWorked = totalElapsedHours - lunchBreakDeduction;
 
@@ -207,8 +214,8 @@ public class PayrollController : ControllerBase
         // Special Holiday: (Hours / 8) * D5 * 1.3 (matches =(C7/8)*D5*1.3)
         decimal specialHolidayPay = (queryParams.SpecialNonWorkingHours / 8.0m) * actualDailyRate * 1.3m;
 
-        // Regular Holiday: (Hours / 8) * D5 (matches =(C8/8)*D5)
-        decimal regularHolidayPay = (queryParams.RegularHolidayHours / 8.0m) * actualDailyRate * 1.0m;
+        // Regular Holiday: 200% multiplier -> (Hours / 8) * D5 * 2.0
+        decimal regularHolidayPay = (queryParams.RegularHolidayHours / 8.0m) * actualDailyRate * 2.0m;
 
         // Overtime Pay: 125% multiplier -> (Hours / 8) * D5 * 1.25
         decimal overtimePay = (queryParams.OvertimeHours / 8.0m) * actualDailyRate * 1.25m;
