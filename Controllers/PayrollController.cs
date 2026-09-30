@@ -155,23 +155,39 @@ public class PayrollController : ControllerBase
                 }
                 else if (employee.OfficeType == "Production")
                 {
-                    // Production: 8:00 AM - 10:00 AM Flex-in
-                    DateTime maxAllowedIn = timeInLocal.Date.AddHours(10);
-                    if (timeInLocal > maxAllowedIn)
+                    DateTime latestFlexIn = timeInLocal.Date.AddHours(10); // 10:00 AM flex limit
+
+                    decimal dayLate = 0;
+                    decimal dayUndertime = 0;
+
+                    // 1. Late Calculation: Strictly minutes past 10:00 AM
+                    if (timeInLocal > latestFlexIn)
                     {
-                        double prodLateMinutes = Math.Round((timeInLocal - maxAllowedIn).TotalMinutes);
-                        lateHoursTotal += (decimal)(prodLateMinutes / 60.0);
+                        double lateMins = Math.Round((timeInLocal - latestFlexIn).TotalMinutes);
+                        dayLate = (decimal)(lateMins / 60.0);
+                        lateHoursTotal += dayLate;
                     }
 
-                    double totalElapsedMinutes = Math.Round((timeOutLocal - effectiveTimeIn).TotalMinutes);
-                    decimal totalElapsedHours = (decimal)(totalElapsedMinutes / 60.0);
-                    decimal lunchBreakDeduction = totalElapsedHours >= 5.0m ? 1.0m : 0.0m;
-                    netHoursWorked = totalElapsedHours - lunchBreakDeduction;
+                    // 2. Sliding Expected Shift End: Arrival time + 9 hours (8 net hours + 1 hr lunch), 
+                    // capped between 5:00 PM (17:00) and 7:00 PM (19:00)
+                    DateTime baseArrivalForShift = timeInLocal < timeInLocal.Date.AddHours(8) ? timeInLocal.Date.AddHours(8) : timeInLocal;
+                    if (baseArrivalForShift > latestFlexIn) baseArrivalForShift = latestFlexIn;
 
-                    if (netHoursWorked < 8.0m)
+                    DateTime slidingExpectedOut = baseArrivalForShift.AddHours(9);
+
+                    // 3. Undertime Calculation: Check if they left before their sliding expected out time
+                    if (timeOutLocal < slidingExpectedOut)
                     {
-                        decimal deficitMinutes = (decimal)Math.Round((8.0m - netHoursWorked) * 60.0m);
-                        undertimeHoursTotal += deficitMinutes / 60.0m;
+                        double underMins = Math.Round((slidingExpectedOut - timeOutLocal).TotalMinutes);
+                        dayUndertime = (decimal)(underMins / 60.0);
+
+                        // Anti-Double Penalty Guardrail
+                        if (dayLate > 0)
+                        {
+                            dayUndertime = Math.Max(0, dayUndertime - dayLate);
+                        }
+
+                        undertimeHoursTotal += dayUndertime;
                     }
                 }
             }
@@ -246,6 +262,7 @@ public class PayrollController : ControllerBase
         var groupedLogs = timeRecords.GroupBy(t => t.DateCreated.Date);
         var dailyLogsList = new List<object>();
         decimal totalUndertimeDebug = 0;
+        decimal totalLateDebug = 0;
 
         foreach (var group in groupedLogs)
         {
@@ -265,11 +282,21 @@ public class PayrollController : ControllerBase
                 DateTime timeOutLocal = timeOutUtc.Value.ToUniversalTime().AddHours(8);
 
                 decimal dayUndertime = 0;
+                decimal dayLate = 0;
                 string evaluationNote = "Normal";
 
                 if (employee.OfficeType == "Admin")
                 {
+                    DateTime expectedIn = timeInLocal.Date.AddHours(9);
+                    DateTime graceLimit = expectedIn.AddMinutes(5).AddSeconds(59);
                     DateTime standardShiftEnd = timeInLocal.Date.AddHours(18); // 6:00 PM
+
+                    if (timeInLocal > graceLimit)
+                    {
+                        double lateMinutes = Math.Round((timeInLocal - expectedIn).TotalMinutes);
+                        dayLate = (decimal)(lateMinutes / 60.0);
+                        totalLateDebug += dayLate;
+                    }
 
                     if (timeOutLocal < standardShiftEnd)
                     {
@@ -283,12 +310,48 @@ public class PayrollController : ControllerBase
                         evaluationNote = "Timed out >= 6:00 PM (0 undertime)";
                     }
                 }
+                else if (employee.OfficeType == "Production")
+                {
+                    DateTime latestFlexIn = timeInLocal.Date.AddHours(10); // 10:00 AM flex limit
+
+                    if (timeInLocal > latestFlexIn)
+                    {
+                        double lateMins = Math.Round((timeInLocal - latestFlexIn).TotalMinutes);
+                        dayLate = (decimal)(lateMins / 60.0);
+                        totalLateDebug += dayLate;
+                    }
+
+                    // Sliding Expected Shift End
+                    DateTime baseArrivalForShift = timeInLocal < timeInLocal.Date.AddHours(8) ? timeInLocal.Date.AddHours(8) : timeInLocal;
+                    if (baseArrivalForShift > latestFlexIn) baseArrivalForShift = latestFlexIn;
+
+                    DateTime slidingExpectedOut = baseArrivalForShift.AddHours(9);
+
+                    if (timeOutLocal < slidingExpectedOut)
+                    {
+                        double underMins = Math.Round((slidingExpectedOut - timeOutLocal).TotalMinutes);
+                        dayUndertime = (decimal)(underMins / 60.0);
+
+                        if (dayLate > 0)
+                        {
+                            dayUndertime = Math.Max(0, dayUndertime - dayLate);
+                        }
+
+                        totalUndertimeDebug += dayUndertime;
+                        evaluationNote = $"Left early before sliding shift end {slidingExpectedOut:HH:mm} (Adjusted undertime: {dayUndertime:N2}h)";
+                    }
+                    else
+                    {
+                        evaluationNote = "Timed out >= sliding expected shift end (0 undertime)";
+                    }
+                }
 
                 dailyLogsList.Add(new
                 {
                     Date = dayDate.ToString("yyyy-MM-dd"),
                     TimeInLocal = timeInLocal.ToString("HH:mm:ss"),
                     TimeOutLocal = timeOutLocal.ToString("HH:mm:ss"),
+                    LateAdded = Math.Round(dayLate, 4),
                     UndertimeAdded = Math.Round(dayUndertime, 4),
                     Note = evaluationNote
                 });
@@ -298,6 +361,8 @@ public class PayrollController : ControllerBase
         return Ok(new
         {
             Employee = $"{employee.LastName}, {employee.FirstName}",
+            OfficeType = employee.OfficeType,
+            CalculatedTotalLate = Math.Round(totalLateDebug, 2),
             CalculatedTotalUndertime = Math.Round(totalUndertimeDebug, 2),
             DailyBreakdown = dailyLogsList
         });
