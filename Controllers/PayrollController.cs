@@ -22,32 +22,80 @@ public class PayrollController : ControllerBase
         _context = context;
     }
 
+    /// <summary>
+    /// Returns the UTC [start, end] window for a pay period.
+    /// "15th" : 2nd-to-last day of previous month 00:00 PHT -> 13th 23:59:59 PHT
+    /// "30th" : 14th 00:00 PHT                              -> 28th 23:59:59 PHT
+    /// </summary>
+    private static (DateTime StartUtc, DateTime EndUtc) GetPayPeriodWindow(DateTime nowUtc, string payPeriod)
+    {
+        // Work in PHT so day boundaries match what HR sees on the time clock
+        DateTime nowPht = nowUtc.AddHours(8);
+
+        DateTime startPht;
+        DateTime endPht;
+
+        if (payPeriod == "15th")
+        {
+            DateTime prevMonth = nowPht.AddMonths(-1);
+            int lastDayPrevMonth = DateTime.DaysInMonth(prevMonth.Year, prevMonth.Month);
+            int secondToLastDay = lastDayPrevMonth - 1; // e.g. Sep 30 -> Sep 29
+
+            startPht = new DateTime(prevMonth.Year, prevMonth.Month, secondToLastDay, 0, 0, 0);
+            endPht = new DateTime(nowPht.Year, nowPht.Month, 13, 23, 59, 59);
+        }
+        else
+        {
+            startPht = new DateTime(nowPht.Year, nowPht.Month, 14, 0, 0, 0);
+            endPht = new DateTime(nowPht.Year, nowPht.Month, 28, 23, 59, 59);
+        }
+
+        // Convert PHT -> UTC. 
+        // Explicitly specify DateTimeKind.Utc so Npgsql doesn't throw an exception.
+        DateTime startUtc = DateTime.SpecifyKind(startPht.AddHours(-8), DateTimeKind.Utc);
+        DateTime endUtc = DateTime.SpecifyKind(endPht.AddHours(-8), DateTimeKind.Utc);
+
+        return (startUtc, endUtc);
+    }
+
+    /// <summary>
+    /// Truncates a timestamp to minute precision so shift comparisons are
+    /// not thrown off by stray seconds (e.g. 09:00:59, 18:00:30).
+    /// </summary>
+    private static DateTime TruncateToMinute(DateTime dt) =>
+        new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, 0, dt.Kind);
+
+    /// <summary>
+    /// Counts expected working days (Mon–Fri, excluding holidays) in the
+    /// inclusive PHT window [startUtc, endUtc].
+    /// </summary>
+    private static int CountExpectedWorkDays(DateTime startUtc, DateTime endUtc, HashSet<DateTime> holidayDates)
+    {
+        DateTime startPht = startUtc.AddHours(8).Date;
+        DateTime endPht = endUtc.AddHours(8).Date;
+
+        int count = 0;
+        for (DateTime d = startPht; d <= endPht; d = d.AddDays(1))
+        {
+            if (d.DayOfWeek == DayOfWeek.Saturday || d.DayOfWeek == DayOfWeek.Sunday)
+                continue;
+
+            if (holidayDates.Contains(d))
+                continue;
+
+            count++;
+        }
+
+        return count;
+    }
+
     [HttpGet("calculate-params/{employeeId}")]
     public async Task<IActionResult> CalculatePayrollParams(int employeeId, [FromQuery] string payPeriod = "15th")
     {
         var employee = await _context.Employees.FindAsync(employeeId);
         if (employee == null) return NotFound("Employee not found.");
 
-        DateTime now = DateTime.UtcNow;
-        DateTime startDate;
-        DateTime endDate;
-
-        // Cutoff Rule: 2 Days before cutoff (15th: prev month 30th - current 13th, 30th: 14th - 28th)
-        if (payPeriod == "15th")
-        {
-            DateTime prevMonth = now.AddMonths(-1);
-            int lastDayPrevMonth = DateTime.DaysInMonth(prevMonth.Year, prevMonth.Month);
-            int startDay = Math.Min(30, lastDayPrevMonth);
-            startDate = new DateTime(prevMonth.Year, prevMonth.Month, startDay, 0, 0, 0, DateTimeKind.Utc);
-            // Strict cutoff at 13th 23:59:59 PHT (which is 15:59:59 UTC)
-            endDate = new DateTime(now.Year, now.Month, 13, 15, 59, 59, DateTimeKind.Utc);
-        }
-        else
-        {
-            startDate = new DateTime(now.Year, now.Month, 14, 0, 0, 0, DateTimeKind.Utc);
-            // Strict cutoff at 28th 23:59:59 PHT (which is 15:59:59 UTC) to prevent trailing records from leaking in
-            endDate = new DateTime(now.Year, now.Month, 28, 15, 59, 59, DateTimeKind.Utc);
-        }
+        var (startDate, endDate) = GetPayPeriodWindow(DateTime.UtcNow, payPeriod);
 
         // Load Holidays within cutoff period
         var periodHolidays = await _context.Holidays
@@ -62,7 +110,8 @@ public class PayrollController : ControllerBase
             .OrderBy(t => t.DateCreated)
             .ToListAsync();
 
-        var groupedLogs = timeRecords.GroupBy(t => t.DateCreated.Date);
+        // Group by PHT date (DateCreated is stored UTC) so a log at 07:00 PHT is grouped under the correct day
+        var groupedLogs = timeRecords.GroupBy(t => t.DateCreated.AddHours(8).Date);
 
         // Rule: (Daily Rate + Daily Allowance) x No. of Days [don't include holidays]
         int daysWorked = groupedLogs.Count(g => !holidayDates.Contains(g.Key));
@@ -111,6 +160,10 @@ public class PayrollController : ControllerBase
                 DateTime timeInLocal = timeInUtc.Value.ToUniversalTime().AddHours(8);
                 DateTime timeOutLocal = timeOutUtc.Value.ToUniversalTime().AddHours(8);
 
+                // Ignore stray seconds so 09:00:59 / 18:00:30 behave like 09:00 / 18:00
+                timeInLocal = TruncateToMinute(timeInLocal);
+                timeOutLocal = TruncateToMinute(timeOutLocal);
+
                 DateTime effectiveTimeIn = timeInLocal;
                 decimal netHoursWorked = 0;
 
@@ -155,12 +208,10 @@ public class PayrollController : ControllerBase
                 }
                 else if (employee.OfficeType == "Production")
                 {
-                    DateTime latestFlexIn = timeInLocal.Date.AddHours(10); // 10:00 AM flex limit
-
-                    decimal dayLate = 0;
-                    decimal dayUndertime = 0;
-
                     // 1. Late Calculation: Strictly minutes past 10:00 AM
+                    DateTime latestFlexIn = timeInLocal.Date.AddHours(10); // 10:00 AM flex limit
+                    decimal dayLate = 0;
+
                     if (timeInLocal > latestFlexIn)
                     {
                         double lateMins = Math.Round((timeInLocal - latestFlexIn).TotalMinutes);
@@ -168,25 +219,17 @@ public class PayrollController : ControllerBase
                         lateHoursTotal += dayLate;
                     }
 
-                    // 2. Sliding Expected Shift End: Arrival time + 9 hours (8 net hours + 1 hr lunch), 
-                    // capped between 5:00 PM (17:00) and 7:00 PM (19:00)
-                    DateTime baseArrivalForShift = timeInLocal < timeInLocal.Date.AddHours(8) ? timeInLocal.Date.AddHours(8) : timeInLocal;
-                    if (baseArrivalForShift > latestFlexIn) baseArrivalForShift = latestFlexIn;
+                    // 2. Expected Shift End: exactly 9 hours from Time In.
+                    // If they arrive at 9:50 AM, expected out is 6:50 PM.
+                    // If they arrive at 10:18 AM, expected out is 7:18 PM.
+                    DateTime expectedShiftEnd = timeInLocal.AddHours(9);
 
-                    DateTime slidingExpectedOut = baseArrivalForShift.AddHours(9);
-
-                    // 3. Undertime Calculation: Check if they left before their sliding expected out time
-                    if (timeOutLocal < slidingExpectedOut)
+                    // 3. Undertime Calculation
+                    decimal dayUndertime = 0;
+                    if (timeOutLocal < expectedShiftEnd)
                     {
-                        double underMins = Math.Round((slidingExpectedOut - timeOutLocal).TotalMinutes);
+                        double underMins = Math.Round((expectedShiftEnd - timeOutLocal).TotalMinutes);
                         dayUndertime = (decimal)(underMins / 60.0);
-
-                        // Anti-Double Penalty Guardrail
-                        if (dayLate > 0)
-                        {
-                            dayUndertime = Math.Max(0, dayUndertime - dayLate);
-                        }
-
                         undertimeHoursTotal += dayUndertime;
                     }
                 }
@@ -204,14 +247,20 @@ public class PayrollController : ControllerBase
             .Where(l => l.EmployeeId == employeeId && l.Status == "Approved" && l.LeaveDate >= startDate && l.LeaveDate <= endDate)
             .ToListAsync();
         decimal approvedLeaveHours = leaves.Sum(l => l.LeaveHours);
+        decimal approvedLeaveDays = approvedLeaveHours / 8.0m;
+
+        // 3b. Absent Days = expected work days - days worked - approved leave days
+        int expectedWorkDays = CountExpectedWorkDays(startDate, endDate, holidayDates);
+        int absentDays = Math.Max(0, expectedWorkDays - daysWorked - (int)Math.Round(approvedLeaveDays));
 
         // 4. Active Cash Advances
         var cashAdvances = await _context.CashAdvances
             .Where(c => c.EmployeeId == employeeId && c.Status == "Active")
             .ToListAsync();
 
+        // This sums up BOTH Cash and Salary advances combined!
         decimal cashAdvanceDeduction = cashAdvances.Sum(c => c.CashAdvanceAmount) / (employee.DeductionType == "Per Pay Period" ? 2.0m : 1.0m);
-
+        
         return Ok(new
         {
             daysWorked,
@@ -222,7 +271,7 @@ public class PayrollController : ControllerBase
             specialNonWorkingHours = Math.Round(specialNonWorkingHoursTotal, 2),
             lateHours = Math.Round(lateHoursTotal, 2),
             undertimeHours = Math.Round(undertimeHoursTotal, 2),
-            absentDays = 0
+            absentDays
         });
     }
 
@@ -232,22 +281,7 @@ public class PayrollController : ControllerBase
         var employee = await _context.Employees.FindAsync(employeeId);
         if (employee == null) return NotFound("Employee not found.");
 
-        DateTime now = DateTime.UtcNow;
-        DateTime startDate;
-        DateTime endDate;
-
-        if (payPeriod == "15th")
-        {
-            DateTime prevMonth = now.AddMonths(-1);
-            int lastDayPrevMonth = DateTime.DaysInMonth(prevMonth.Year, prevMonth.Month);
-            startDate = new DateTime(prevMonth.Year, prevMonth.Month, Math.Min(30, lastDayPrevMonth), 0, 0, 0, DateTimeKind.Utc);
-            endDate = new DateTime(now.Year, now.Month, 13, 15, 59, 59, DateTimeKind.Utc);
-        }
-        else
-        {
-            startDate = new DateTime(now.Year, now.Month, 14, 0, 0, 0, DateTimeKind.Utc);
-            endDate = new DateTime(now.Year, now.Month, 28, 15, 59, 59, DateTimeKind.Utc);
-        }
+        var (startDate, endDate) = GetPayPeriodWindow(DateTime.UtcNow, payPeriod);
 
         var periodHolidays = await _context.Holidays
             .Where(h => h.HolidayDate >= startDate && h.HolidayDate <= endDate)
@@ -259,7 +293,8 @@ public class PayrollController : ControllerBase
             .OrderBy(t => t.DateCreated)
             .ToListAsync();
 
-        var groupedLogs = timeRecords.GroupBy(t => t.DateCreated.Date);
+        // Group by PHT date so day boundaries match the shift comparisons below
+        var groupedLogs = timeRecords.GroupBy(t => t.DateCreated.AddHours(8).Date);
         var dailyLogsList = new List<object>();
         decimal totalUndertimeDebug = 0;
         decimal totalLateDebug = 0;
@@ -280,6 +315,10 @@ public class PayrollController : ControllerBase
             {
                 DateTime timeInLocal = timeInUtc.Value.ToUniversalTime().AddHours(8);
                 DateTime timeOutLocal = timeOutUtc.Value.ToUniversalTime().AddHours(8);
+
+                // Ignore stray seconds so debugging matches CalculatePayrollParams
+                timeInLocal = TruncateToMinute(timeInLocal);
+                timeOutLocal = TruncateToMinute(timeOutLocal);
 
                 decimal dayUndertime = 0;
                 decimal dayLate = 0;
@@ -321,28 +360,20 @@ public class PayrollController : ControllerBase
                         totalLateDebug += dayLate;
                     }
 
-                    // Sliding Expected Shift End
-                    DateTime baseArrivalForShift = timeInLocal < timeInLocal.Date.AddHours(8) ? timeInLocal.Date.AddHours(8) : timeInLocal;
-                    if (baseArrivalForShift > latestFlexIn) baseArrivalForShift = latestFlexIn;
+                    // UPDATED: Expected Shift End is exactly 9 hours from Time In
+                    DateTime expectedShiftEnd = timeInLocal.AddHours(9);
 
-                    DateTime slidingExpectedOut = baseArrivalForShift.AddHours(9);
-
-                    if (timeOutLocal < slidingExpectedOut)
+                    if (timeOutLocal < expectedShiftEnd)
                     {
-                        double underMins = Math.Round((slidingExpectedOut - timeOutLocal).TotalMinutes);
+                        double underMins = Math.Round((expectedShiftEnd - timeOutLocal).TotalMinutes);
                         dayUndertime = (decimal)(underMins / 60.0);
 
-                        if (dayLate > 0)
-                        {
-                            dayUndertime = Math.Max(0, dayUndertime - dayLate);
-                        }
-
                         totalUndertimeDebug += dayUndertime;
-                        evaluationNote = $"Left early before sliding shift end {slidingExpectedOut:HH:mm} (Adjusted undertime: {dayUndertime:N2}h)";
+                        evaluationNote = $"Left early before expected shift end {expectedShiftEnd:HH:mm} (Undertime: {dayUndertime:N2}h)";
                     }
                     else
                     {
-                        evaluationNote = "Timed out >= sliding expected shift end (0 undertime)";
+                        evaluationNote = "Timed out >= expected shift end (0 undertime)";
                     }
                 }
 
@@ -725,8 +756,7 @@ public class PayrollController : ControllerBase
         string totalAmount,
         string totalColor)
     {
-        container
-            .Border(1).BorderColor(Line)
+        container.Border(1).BorderColor(Line)
             .CornerRadius(6)
             .Column(col =>
             {

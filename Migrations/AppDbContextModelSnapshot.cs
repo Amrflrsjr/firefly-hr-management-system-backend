@@ -82,6 +82,10 @@ namespace FireflyHR.API.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EmployeeId");

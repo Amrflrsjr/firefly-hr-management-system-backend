@@ -10,4 +10,5 @@ public class CashAdvance
     public string DeductionType { get; set; } = "Monthly"; // Monthly or Per Pay Period
     public DateTime Date { get; set; } = DateTime.UtcNow;
     public string Status { get; set; } = "Active"; // Active or Paid
+    public string Type { get; set; } = "Cash";
 }
