@@ -66,8 +66,8 @@ public class PayrollController : ControllerBase
         new DateTime(dt.Year, dt.Month, dt.Day, dt.Hour, dt.Minute, 0, dt.Kind);
 
     /// <summary>
-    /// Counts expected working days (Mon–Fri, excluding holidays) in the
-    /// inclusive PHT window [startUtc, endUtc].
+    /// Counts expected working days (Mon-Sat for everyone) excluding holidays
+    /// in the inclusive PHT window [startUtc, endUtc].
     /// </summary>
     private static int CountExpectedWorkDays(DateTime startUtc, DateTime endUtc, HashSet<DateTime> holidayDates)
     {
@@ -77,9 +77,11 @@ public class PayrollController : ControllerBase
         int count = 0;
         for (DateTime d = startPht; d <= endPht; d = d.AddDays(1))
         {
-            if (d.DayOfWeek == DayOfWeek.Saturday || d.DayOfWeek == DayOfWeek.Sunday)
+            // Everyone rests on Sunday
+            if (d.DayOfWeek == DayOfWeek.Sunday)
                 continue;
 
+            // Exclude holidays
             if (holidayDates.Contains(d))
                 continue;
 
@@ -113,8 +115,8 @@ public class PayrollController : ControllerBase
         // Group by PHT date (DateCreated is stored UTC) so a log at 07:00 PHT is grouped under the correct day
         var groupedLogs = timeRecords.GroupBy(t => t.DateCreated.AddHours(8).Date);
 
-        // Rule: (Daily Rate + Daily Allowance) x No. of Days [don't include holidays]
-        int daysWorked = groupedLogs.Count(g => !holidayDates.Contains(g.Key));
+        // Rule: (Daily Rate + Daily Allowance) x No. of Days [don't include holidays or Sundays]
+        int daysWorked = groupedLogs.Count(g => !holidayDates.Contains(g.Key) && g.Key.DayOfWeek != DayOfWeek.Sunday);
 
         decimal lateHoursTotal = 0;
         decimal undertimeHoursTotal = 0;
@@ -220,8 +222,6 @@ public class PayrollController : ControllerBase
                     }
 
                     // 2. Expected Shift End: exactly 9 hours from Time In.
-                    // If they arrive at 9:50 AM, expected out is 6:50 PM.
-                    // If they arrive at 10:18 AM, expected out is 7:18 PM.
                     DateTime expectedShiftEnd = timeInLocal.AddHours(9);
 
                     // 3. Undertime Calculation
@@ -260,7 +260,7 @@ public class PayrollController : ControllerBase
 
         // This sums up BOTH Cash and Salary advances combined!
         decimal cashAdvanceDeduction = cashAdvances.Sum(c => c.CashAdvanceAmount) / (employee.DeductionType == "Per Pay Period" ? 2.0m : 1.0m);
-        
+
         return Ok(new
         {
             daysWorked,
@@ -360,7 +360,7 @@ public class PayrollController : ControllerBase
                         totalLateDebug += dayLate;
                     }
 
-                    // UPDATED: Expected Shift End is exactly 9 hours from Time In
+                    // Expected Shift End is exactly 9 hours from Time In
                     DateTime expectedShiftEnd = timeInLocal.AddHours(9);
 
                     if (timeOutLocal < expectedShiftEnd)
