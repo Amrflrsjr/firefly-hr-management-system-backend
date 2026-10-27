@@ -221,8 +221,14 @@ public class PayrollController : ControllerBase
                         lateHoursTotal += dayLate;
                     }
 
-                    // 2. Expected Shift End: exactly 9 hours from Time In.
+                    // 2. Expected Shift End: exactly 9 hours from Time In, capped at 7:00 PM (19:00).
                     DateTime expectedShiftEnd = timeInLocal.AddHours(9);
+                    DateTime maxShiftEnd = timeInLocal.Date.AddHours(19); // 7:00 PM cap
+
+                    if (expectedShiftEnd > maxShiftEnd)
+                    {
+                        expectedShiftEnd = maxShiftEnd;
+                    }
 
                     // 3. Undertime Calculation
                     decimal dayUndertime = 0;
@@ -360,8 +366,14 @@ public class PayrollController : ControllerBase
                         totalLateDebug += dayLate;
                     }
 
-                    // Expected Shift End is exactly 9 hours from Time In
+                    // Expected Shift End is exactly 9 hours from Time In, capped at 7:00 PM
                     DateTime expectedShiftEnd = timeInLocal.AddHours(9);
+                    DateTime maxShiftEnd = timeInLocal.Date.AddHours(19); // 7:00 PM cap
+
+                    if (expectedShiftEnd > maxShiftEnd)
+                    {
+                        expectedShiftEnd = maxShiftEnd;
+                    }
 
                     if (timeOutLocal < expectedShiftEnd)
                     {
@@ -446,7 +458,7 @@ public class PayrollController : ControllerBase
         // Deductions
         decimal lateDeduction = (queryParams.LateHours / 8.0m) * actualDailyRate;
         decimal undertimeDeduction = (queryParams.UndertimeHours / 8.0m) * actualDailyRate;
-        decimal absentDeduction = queryParams.AbsentDays * actualDailyRate;
+        decimal absentDeduction = 0;
 
         // 2. Statutory Government Contributions (Fixed per spreadsheet values)
         decimal sssDeduction = 0;
