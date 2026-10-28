@@ -95,6 +95,48 @@ public class PayrollController : ControllerBase
         return count;
     }
 
+    [HttpGet("thirteenth-month/{employeeId}")]
+    public async Task<IActionResult> Calculate13thMonth(int employeeId, [FromQuery] int year = 0)
+    {
+        if (year == 0) year = DateTime.UtcNow.Year;
+
+        var employee = await _context.Employees.FindAsync(employeeId);
+        if (employee == null) return NotFound("Employee not found.");
+
+        // Get all payslips for the employee within the specified calendar year
+        var payslips = await _context.PaySlips
+            .Where(p => p.EmployeeId == employeeId &&
+                        p.DateCreated.Year == year)
+            .OrderBy(p => p.DateCreated)
+            .ToListAsync();
+
+        // 13th month is based on Basic Pay (excluding allowances, OT, and holiday pays)
+        decimal totalBasicPay = payslips.Sum(p => p.BasicPay);
+
+        // Formula: Total Basic Salary Earned / 12
+        decimal thirteenthMonthPay = totalBasicPay / 12.0m;
+
+        // Map the payslips for the frontend table
+        var payslipList = payslips.Select(p => new
+        {
+            id = p.Id,
+            payPeriod = p.PayPeriod,
+            payPeriodEnd = p.PayPeriodEnd,
+            basicPay = p.BasicPay
+        }).ToList();
+
+        return Ok(new
+        {
+            employeeId = employee.Id,
+            employeeName = $"{employee.LastName}, {employee.FirstName}",
+            year = year,
+            totalBasicPayEarned = Math.Round(totalBasicPay, 2),
+            thirteenthMonthPay = Math.Round(thirteenthMonthPay, 2),
+            payslipCount = payslips.Count,
+            payslips = payslipList // <-- THIS WAS MISSING
+        });
+    }
+
     [HttpGet("calculate-params/{employeeId}")]
     public async Task<IActionResult> CalculatePayrollParams(int employeeId, [FromQuery] string payPeriod = "15th")
     {
