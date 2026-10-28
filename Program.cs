@@ -99,12 +99,13 @@ app.UseSwaggerUI();
 
 app.UseCors("AllowReactApp");
 
-app.UseAuthentication();
-app.UseAuthorization();
-
 // Dedicated lightweight health check endpoint for AWS ALB (bypasses auth automatically)
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", timestamp = DateTime.UtcNow }))
    .AllowAnonymous();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
 
 app.MapControllers();
 
