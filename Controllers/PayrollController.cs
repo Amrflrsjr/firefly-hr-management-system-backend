@@ -46,8 +46,12 @@ public class PayrollController : ControllerBase
         }
         else
         {
+            // Find the last day of the month, subtract 2 days to get the 2nd-to-last day
+            int lastDayOfMonth = DateTime.DaysInMonth(nowPht.Year, nowPht.Month);
+            int endDay = lastDayOfMonth - 2;
+
             startPht = new DateTime(nowPht.Year, nowPht.Month, 14, 0, 0, 0);
-            endPht = new DateTime(nowPht.Year, nowPht.Month, 28, 23, 59, 59);
+            endPht = new DateTime(nowPht.Year, nowPht.Month, endDay, 23, 59, 59);
         }
 
         // Convert PHT -> UTC. 
