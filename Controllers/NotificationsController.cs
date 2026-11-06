@@ -85,4 +85,36 @@ public class NotificationsController : ControllerBase
         await _context.SaveChangesAsync();
         return NoContent();
     }
+
+    // GET: api/Notifications/unread-summary/{employeeId}
+    [HttpGet("unread-summary/{employeeId}")]
+    public async Task<ActionResult> GetUnreadSummary(int employeeId)
+    {
+        // This performs ONE single, highly optimized database query to get all counts.
+        var counts = await _context.Notifications
+            .Where(n => n.EmployeeId == employeeId && !n.IsRead && n.Type != null)
+            .GroupBy(n => n.Type)
+            .Select(g => new { Type = g.Key, Count = g.Count() })
+            .ToListAsync();
+
+        // Initialize all to 0 to prevent frontend errors if a type has no notifications
+        var result = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+    {
+        { "Leave", 0 },
+        { "Overtime", 0 },
+        { "Advance", 0 },
+        { "Payroll", 0 }
+    };
+
+        // Map the database results to our dictionary
+        foreach (var c in counts)
+        {
+            if (c.Type != null && result.ContainsKey(c.Type))
+            {
+                result[c.Type] = c.Count;
+            }
+        }
+
+        return Ok(result);
+    }
 }
