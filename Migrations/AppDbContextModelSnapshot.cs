@@ -93,6 +93,33 @@ namespace FireflyHR.API.Migrations
                     b.ToTable("CashAdvances");
                 });
 
+            modelBuilder.Entity("FireflyHR.API.Models.CashAdvancePayment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("CashAdvanceId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("PaymentDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Remarks")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CashAdvanceId");
+
+                    b.ToTable("CashAdvancePayments");
+                });
+
             modelBuilder.Entity("FireflyHR.API.Models.Employee", b =>
                 {
                     b.Property<int>("Id")
@@ -505,6 +532,17 @@ namespace FireflyHR.API.Migrations
                     b.Navigation("Employee");
                 });
 
+            modelBuilder.Entity("FireflyHR.API.Models.CashAdvancePayment", b =>
+                {
+                    b.HasOne("FireflyHR.API.Models.CashAdvance", "CashAdvance")
+                        .WithMany("Payments")
+                        .HasForeignKey("CashAdvanceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CashAdvance");
+                });
+
             modelBuilder.Entity("FireflyHR.API.Models.Leave", b =>
                 {
                     b.HasOne("FireflyHR.API.Models.Employee", "Employee")
@@ -547,6 +585,11 @@ namespace FireflyHR.API.Migrations
                         .IsRequired();
 
                     b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("FireflyHR.API.Models.CashAdvance", b =>
+                {
+                    b.Navigation("Payments");
                 });
 #pragma warning restore 612, 618
         }
