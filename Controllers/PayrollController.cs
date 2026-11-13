@@ -202,7 +202,7 @@ public class PayrollController : ControllerBase
             }
 
             // Strict Day-by-Day Evaluation for Regular Non-Holiday Days
-            // FIX: We now only require timeInUtc to process the day. If timeOutUtc is missing, we still evaluate the shift.
+            // We only require timeInUtc to process the day. If timeOutUtc is missing, we still evaluate the shift.
             if (holiday == null && timeInUtc.HasValue)
             {
                 // Convert to Philippine Standard Time (+8) for shift comparisons
@@ -247,14 +247,8 @@ public class PayrollController : ControllerBase
                         lateHoursTotal += (decimal)(lateMins / 60.0);
                     }
 
-                    // 2. Expected Shift End: exactly 9 hours from Time In, capped at 7:00 PM (19:00).
-                    DateTime expectedShiftEnd = timeInLocal.AddHours(9);
-                    DateTime maxShiftEnd = timeInLocal.Date.AddHours(19); // 7:00 PM cap
-
-                    if (expectedShiftEnd > maxShiftEnd)
-                    {
-                        expectedShiftEnd = maxShiftEnd;
-                    }
+                    // 2. Expected Shift End: Strictly fixed at 7:00 PM (19:00) regardless of time in.
+                    DateTime expectedShiftEnd = timeInLocal.Date.AddHours(19);
 
                     // 3. Undertime Calculation (Only if there is a Time OUT)
                     if (timeOutLocal.HasValue && timeOutLocal.Value < expectedShiftEnd)
@@ -280,7 +274,7 @@ public class PayrollController : ControllerBase
         decimal approvedLeaveDays = approvedLeaveHours / 8.0m;
 
         // 3b. Absent Days = expected work days - days worked - approved leave days
-        // FIX: Cap the expected work days at Today's date so future days don't count as absences yet.
+        // Cap the expected work days at Today's date so future days don't count as absences yet.
         DateTime actualEndDate = endDate > DateTime.UtcNow ? DateTime.UtcNow : endDate;
         int expectedWorkDays = CountExpectedWorkDays(startDate, actualEndDate, holidayDates);
         int absentDays = Math.Max(0, expectedWorkDays - daysWorked - (int)Math.Round(approvedLeaveDays));
@@ -342,7 +336,7 @@ public class PayrollController : ControllerBase
             var timeInUtc = firstIn?.DateCreated;
             var timeOutUtc = lastOut?.DateCreated;
 
-            // FIX: Only require timeInUtc so missing clock-outs show up in the breakdown
+            // Only require timeInUtc so missing clock-outs show up in the breakdown
             if (holiday == null && timeInUtc.HasValue)
             {
                 DateTime timeInLocal = TruncateToMinute(timeInUtc.Value.ToUniversalTime().AddHours(8));
@@ -395,13 +389,8 @@ public class PayrollController : ControllerBase
                         totalLateDebug += dayLate;
                     }
 
-                    DateTime expectedShiftEnd = timeInLocal.AddHours(9);
-                    DateTime maxShiftEnd = timeInLocal.Date.AddHours(19); // 7:00 PM cap
-
-                    if (expectedShiftEnd > maxShiftEnd)
-                    {
-                        expectedShiftEnd = maxShiftEnd;
-                    }
+                    // Fixed 7:00 PM cap
+                    DateTime expectedShiftEnd = timeInLocal.Date.AddHours(19);
 
                     if (timeOutLocal.HasValue)
                     {
