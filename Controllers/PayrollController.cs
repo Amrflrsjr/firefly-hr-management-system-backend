@@ -188,8 +188,10 @@ public class PayrollController : ControllerBase
 
             if (timeInUtc.HasValue && timeOutUtc.HasValue && holiday != null)
             {
-                decimal hoursWorkedOnDay = (decimal)(timeOutUtc.Value - timeInUtc.Value).TotalHours;
-                decimal cappedHolidayHours = Math.Min(hoursWorkedOnDay, 8.0m);
+                decimal hoursOnSite = (decimal)(timeOutUtc.Value - timeInUtc.Value).TotalHours;
+
+                // Unpaid 1-hour break inside the 9h on-site window -> paid hours = on-site - 1h, clamped to [0, 8]
+                decimal cappedHolidayHours = Math.Min(Math.Max(hoursOnSite - 1.0m, 0m), 8.0m);
 
                 if (holiday.HolidayType == "Regular Holiday")
                 {
@@ -209,8 +211,6 @@ public class PayrollController : ControllerBase
                 DateTime timeInLocal = TruncateToMinute(timeInUtc.Value.ToUniversalTime().AddHours(8));
                 DateTime? timeOutLocal = timeOutUtc.HasValue ? TruncateToMinute(timeOutUtc.Value.ToUniversalTime().AddHours(8)) : null;
 
-                DateTime effectiveTimeIn = timeInLocal;
-
                 if (employee.OfficeType == "Admin")
                 {
                     // Fixed 9:00 AM - 6:00 PM with grace period allowing up to 9:05:59 AM
@@ -224,10 +224,6 @@ public class PayrollController : ControllerBase
                         double lateMinutes = Math.Round((timeInLocal - expectedIn).TotalMinutes);
                         lateHoursTotal += (decimal)(lateMinutes / 60.0);
                     }
-                    else if (timeInLocal > expectedIn && timeInLocal <= graceLimit)
-                    {
-                        effectiveTimeIn = expectedIn;
-                    }
 
                     // 2. Independent Undertime Calculation (Only if there is a Time OUT)
                     if (timeOutLocal.HasValue && timeOutLocal.Value < standardShiftEnd)
@@ -238,19 +234,29 @@ public class PayrollController : ControllerBase
                 }
                 else if (employee.OfficeType == "Production")
                 {
-                    // 1. Late Calculation: Strictly minutes past 10:00 AM
-                    DateTime latestFlexIn = timeInLocal.Date.AddHours(10); // 10:00 AM flex limit
+                    // Flexible window: 8:00 AM – 10:00 AM. Late only once the clock hits 10:01:00.
+                    DateTime latestFlexIn = timeInLocal.Date.AddHours(10);        // 10:00:00
+                    DateTime lateThreshold = latestFlexIn.AddMinutes(1);          // 10:01:00
 
-                    if (timeInLocal > latestFlexIn)
+                    bool isLate = timeInLocal >= lateThreshold;
+
+                    DateTime expectedShiftEnd;
+
+                    if (isLate)
                     {
+                        // Late → cap expected out at 7:00 PM so they aren't double-penalized
+                        expectedShiftEnd = timeInLocal.Date.AddHours(19);         // 19:00
+
                         double lateMins = Math.Round((timeInLocal - latestFlexIn).TotalMinutes);
                         lateHoursTotal += (decimal)(lateMins / 60.0);
                     }
+                    else
+                    {
+                        // On time (or early) → flexible: expected out = time in + 9 hours
+                        // (8 paid hours + 1 hour break). Early in = early out, no penalty.
+                        expectedShiftEnd = timeInLocal.AddHours(9);
+                    }
 
-                    // 2. Expected Shift End: Strictly fixed at 7:00 PM (19:00) regardless of time in.
-                    DateTime expectedShiftEnd = timeInLocal.Date.AddHours(19);
-
-                    // 3. Undertime Calculation (Only if there is a Time OUT)
                     if (timeOutLocal.HasValue && timeOutLocal.Value < expectedShiftEnd)
                     {
                         double underMins = Math.Round((expectedShiftEnd - timeOutLocal.Value).TotalMinutes);
@@ -284,7 +290,13 @@ public class PayrollController : ControllerBase
             .Where(c => c.EmployeeId == employeeId && c.Status == "Active")
             .ToListAsync();
 
-        decimal cashAdvanceDeduction = cashAdvances.Sum(c => c.CashAdvanceAmount) / (employee.DeductionType == "Per Pay Period" ? 2.0m : 1.0m);
+        // Use the remaining balance (falling back to the original amount for untouched records)
+        // so the preview matches what ComputePayroll will actually deduct.
+        decimal totalRemainingCashAdvance = cashAdvances.Sum(c =>
+            c.RemainingBalance > 0 ? c.RemainingBalance : c.CashAdvanceAmount);
+
+        decimal cashAdvanceDeduction = totalRemainingCashAdvance
+            / (employee.DeductionType == "Per Pay Period" ? 2.0m : 1.0m);
 
         return Ok(new
         {
@@ -380,17 +392,26 @@ public class PayrollController : ControllerBase
                 }
                 else if (employee.OfficeType == "Production")
                 {
-                    DateTime latestFlexIn = timeInLocal.Date.AddHours(10); // 10:00 AM flex limit
+                    DateTime latestFlexIn = timeInLocal.Date.AddHours(10);        // 10:00:00
+                    DateTime lateThreshold = latestFlexIn.AddMinutes(1);          // 10:01:00
 
-                    if (timeInLocal > latestFlexIn)
+                    bool isLate = timeInLocal >= lateThreshold;
+                    DateTime expectedShiftEnd;
+
+                    if (isLate)
                     {
+                        expectedShiftEnd = timeInLocal.Date.AddHours(19);         // 19:00
+
                         double lateMins = Math.Round((timeInLocal - latestFlexIn).TotalMinutes);
                         dayLate = (decimal)(lateMins / 60.0);
                         totalLateDebug += dayLate;
+                        evaluationNote = $"Late (in {timeInLocal:HH:mm}), expected out capped at 19:00";
                     }
-
-                    // Fixed 7:00 PM cap
-                    DateTime expectedShiftEnd = timeInLocal.Date.AddHours(19);
+                    else
+                    {
+                        expectedShiftEnd = timeInLocal.AddHours(9);               // in + 9h
+                        evaluationNote = $"Flexible (in {timeInLocal:HH:mm}), expected out {expectedShiftEnd:HH:mm}";
+                    }
 
                     if (timeOutLocal.HasValue)
                     {
@@ -398,18 +419,17 @@ public class PayrollController : ControllerBase
                         {
                             double underMins = Math.Round((expectedShiftEnd - timeOutLocal.Value).TotalMinutes);
                             dayUndertime = (decimal)(underMins / 60.0);
-
                             totalUndertimeDebug += dayUndertime;
-                            evaluationNote = $"Left early before expected shift end {expectedShiftEnd:HH:mm} (Undertime: {dayUndertime:N2}h)";
+                            evaluationNote += $" — left early, undertime {dayUndertime:N2}h";
                         }
                         else
                         {
-                            evaluationNote = "Timed out >= expected shift end (0 undertime)";
+                            evaluationNote += " — timed out on/after expected end (0 undertime)";
                         }
                     }
                     else
                     {
-                        evaluationNote = "Missing Time OUT (Assumed completed shift)";
+                        evaluationNote += " — missing Time OUT (assumed completed shift)";
                     }
                 }
 
@@ -444,16 +464,18 @@ public class PayrollController : ControllerBase
         string periodName = queryParams.PayPeriod == "15th" ? "15th Pay Period" : "End of Month Pay Period";
         DateTime now = DateTime.UtcNow;
 
-        // Strict Rule: Block creation if a pay slip already exists for this employee, period, and month
+        // Resolve the actual pay-period window so PayPeriodEnd reflects the period, not "today".
+        var (_, periodEndUtc) = GetPayPeriodWindow(now, queryParams.PayPeriod);
+
+        // Strict Rule: Block creation if a pay slip already exists for this employee, period, and window.
         bool exists = await _context.PaySlips.AnyAsync(p =>
             p.EmployeeId == employeeId &&
             p.PayPeriod == periodName &&
-            p.PayPeriodEnd.Month == now.Month &&
-            p.PayPeriodEnd.Year == now.Year);
+            p.PayPeriodEnd.Date == periodEndUtc.Date);
 
         if (exists)
         {
-            return BadRequest($"A {periodName} pay slip already exists for this month. Delete it from History first to recalculate.");
+            return BadRequest($"A {periodName} pay slip already exists for this period. Delete it from History first to recalculate.");
         }
 
         // 1. Spreadsheet-Aligned Rates & Earnings Formulas (D5 equivalent is Actual Daily Rate)
@@ -547,7 +569,7 @@ public class PayrollController : ControllerBase
         {
             EmployeeId = employeeId,
             PayPeriod = periodName,
-            PayPeriodEnd = now,
+            PayPeriodEnd = periodEndUtc,
             DailySalary = employee.DailySalary,
             DailyAllowance = dailyAllowance,
             BasicPay = Math.Round(basicPay, 2),
@@ -732,27 +754,16 @@ public class PayrollController : ControllerBase
         return Ok(new { message = "Pay slip record deleted successfully and cash advance balance restored." });
     }
 
-    // Helper: Compute Monthly SSS Employee Contribution based on MSC Brackets
-    private static decimal CalculateSssEmployeeContribution(decimal monthlySalary)
-    {
-        if (monthlySalary <= 4250.0m) return 400.0m;
-        if (monthlySalary >= 29750.0m) return 2700.0m;
-
-        decimal msc = Math.Floor((monthlySalary - 4250.0m) / 500.0m) * 500.0m + 4500.0m;
-        return msc * 0.045m;
-    }
-
     [HttpGet("status-summary")]
     public async Task<IActionResult> GetPayrollStatusSummary([FromQuery] string payPeriod = "15th")
     {
         string periodName = payPeriod == "15th" ? "15th Pay Period" : "End of Month Pay Period";
-        DateTime now = DateTime.UtcNow;
+        var (_, windowEnd) = GetPayPeriodWindow(DateTime.UtcNow, payPeriod);
 
-        // Find all employee IDs with generated payslips for this period and month
+        // Find all employee IDs with generated payslips for this period and window
         var generatedSlips = await _context.PaySlips
             .Where(p => p.PayPeriod == periodName &&
-                        p.PayPeriodEnd.Month == now.Month &&
-                        p.PayPeriodEnd.Year == now.Year)
+                        p.PayPeriodEnd.Date == windowEnd.Date)
             .Select(p => p.EmployeeId)
             .Distinct()
             .ToListAsync();
@@ -843,14 +854,13 @@ public class PayrollController : ControllerBase
         if (payrollRecord == null && employeeId.HasValue)
         {
             string targetPeriod = payPeriod ?? (idOrPeriod.Contains("15th") ? "15th Pay Period" : "End of Month Pay Period");
-            DateTime now = DateTime.UtcNow;
+            var (_, windowEnd) = GetPayPeriodWindow(DateTime.UtcNow, targetPeriod);
 
             payrollRecord = await _context.PaySlips
                 .Include(p => p.Employee)
                 .Where(p => p.EmployeeId == employeeId.Value &&
                             p.PayPeriod.ToLower().Contains(targetPeriod.ToLower()) &&
-                            p.PayPeriodEnd.Month == now.Month &&
-                            p.PayPeriodEnd.Year == now.Year)
+                            p.PayPeriodEnd.Date == windowEnd.Date)
                 .OrderByDescending(p => p.DateCreated)
                 .FirstOrDefaultAsync();
         }
@@ -1021,14 +1031,13 @@ public class PayrollController : ControllerBase
     public async Task<IActionResult> DownloadPayslipByEmployeePdf(int employeeId, [FromQuery] string payPeriod = "15th")
     {
         string periodName = payPeriod.Contains("15th") ? "15th Pay Period" : "End of Month Pay Period";
-        DateTime now = DateTime.UtcNow;
+        var (_, windowEnd) = GetPayPeriodWindow(DateTime.UtcNow, payPeriod);
 
         var payrollRecord = await _context.PaySlips
             .Include(p => p.Employee)
             .Where(p => p.EmployeeId == employeeId &&
                         p.PayPeriod == periodName &&
-                        p.PayPeriodEnd.Month == now.Month &&
-                        p.PayPeriodEnd.Year == now.Year)
+                        p.PayPeriodEnd.Date == windowEnd.Date)
             .OrderByDescending(p => p.DateCreated)
             .FirstOrDefaultAsync();
 
